@@ -13,7 +13,7 @@ from app.jobs.sync_pipeline import run_sync_pipeline, WATERMARK_KEY
 
 logger = structlog.get_logger()
 
-router = APIRouter(prefix="/api/probe/sync", tags=["Sync"])
+router = APIRouter(prefix="/sync", tags=["Sync"])
 
 # Rate limiting: track last manual sync time
 _last_manual_sync: datetime | None = None
