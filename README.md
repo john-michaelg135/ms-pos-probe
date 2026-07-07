@@ -105,7 +105,6 @@ All enhancements are implemented as a **completely separate system**. Zero modif
 | State Management | Zustand | Latest | Lightweight frontend global state |
 | Data Fetching | React Query (TanStack) | Latest | API caching & background refetch |
 | Charting | Recharts | Latest | Data visualization |
-| Containerization | Docker | 29.x | Infrastructure services |
 
 ---
 
@@ -120,7 +119,6 @@ All enhancements are implemented as a **completely separate system**. Zero modif
 | **Node.js** | 20+ | [nodejs.org](https://nodejs.org/) | ✅ 24.11.1 |
 | **npm** | 10+ | Bundled with Node.js | ✅ 11.6.2 |
 | **Git** | 2.40+ | [git-scm.com](https://git-scm.com/) | ✅ 2.51.2 |
-| **Docker** | 24+ | [docker.com](https://www.docker.com/products/docker-desktop/) | ✅ 29.4.1 |
 
 ### Required Services (to be installed)
 
@@ -393,3 +391,4 @@ cd dashboard && npm run build             # Production build
 ## License
 
 Academic project — Capstone Enhancement, Summer Semester 2026.
+

@@ -94,12 +94,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# ============================================
-# Docker & Infrastructure
-# ============================================
-docker/volumes/
-docker/data/
-
 # ── Redis dump ──
 dump.rdb
 
