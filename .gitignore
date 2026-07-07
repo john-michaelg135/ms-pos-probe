@@ -1,36 +1,107 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================
+# POS-PROBE Monorepo .gitignore
+# ============================================
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# ── Documentation (allow docs to be tracked) ──
+# NOTE: Removed the *docs rule that was ignoring the docs/ folder
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# ── Global ──
 .DS_Store
-*.pem
+Thumbs.db
+*.log
+*.tmp
+*.swp
 
-# debug
+# ── Environment Variables ──
+.env
+.env.local
+.env.*.local
+
+# ── IDE ──
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ============================================
+# Gateway (C# .NET / YARP)
+# ============================================
+gateway/bin/
+gateway/obj/
+gateway/*.user
+gateway/*.suo
+
+# ── .NET build artifacts ──
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.dll
+*.exe
+*.pdb
+*.cache
+
+# ============================================
+# AI Service (Python / FastAPI)
+# ============================================
+ai-service/__pycache__/
+ai-service/**/__pycache__/
+ai-service/.pytest_cache/
+ai-service/.mypy_cache/
+ai-service/.ruff_cache/
+ai-service/venv/
+ai-service/.venv/
+ai-service/*.egg-info/
+ai-service/dist/
+ai-service/build/
+
+# ── DuckDB database files ──
+ai-service/data/*.duckdb
+ai-service/data/*.duckdb.wal
+
+# ── ML model artifacts (large binary files) ──
+ai-service/models/artifacts/*.pkl
+ai-service/models/artifacts/*.joblib
+
+# ── Python general ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+
+# ============================================
+# Dashboard (Next.js / React)
+# ============================================
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+dashboard/build/
+dashboard/.pnp
+dashboard/.pnp.js
+dashboard/coverage/
+dashboard/*.tsbuildinfo
+dashboard/next-env.d.ts
+
+# ── npm/yarn/pnpm ──
+node_modules/
+.pnp
+.pnp.js
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
-.env
+# ============================================
+# Docker & Infrastructure
+# ============================================
+docker/volumes/
+docker/data/
 
-# vercel
-.vercel
+# ── Redis dump ──
+dump.rdb
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Local
+*docs
