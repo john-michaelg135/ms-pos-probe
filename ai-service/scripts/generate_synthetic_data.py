@@ -263,6 +263,7 @@ def insert_into_duckdb(transactions: list[dict]) -> int:
     DUCKDB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     df = pd.DataFrame(transactions)
+
     conn = duckdb.connect(str(DUCKDB_PATH))
 
     # Ensure schema exists
@@ -272,9 +273,12 @@ def insert_into_duckdb(transactions: list[dict]) -> int:
     # Clear existing synthetic data and insert fresh
     conn.execute("DELETE FROM sales_transactions WHERE transaction_id LIKE 'SYN-%'")
 
-    conn.register("_synthetic_data", df)
-    conn.execute("INSERT INTO sales_transactions SELECT * FROM _synthetic_data")
-    conn.unregister("_synthetic_data")
+    # Write to a temp parquet file and load from it (avoids DuckDB DataFrame type issues)
+    import tempfile, os
+    tmp_path = os.path.join(tempfile.gettempdir(), "pos_probe_synthetic.parquet")
+    df.to_parquet(tmp_path, index=False)
+    conn.execute(f"INSERT INTO sales_transactions SELECT * FROM read_parquet('{tmp_path}')")
+    os.remove(tmp_path)
 
     count = conn.execute("SELECT COUNT(*) FROM sales_transactions").fetchone()[0]
     conn.close()
