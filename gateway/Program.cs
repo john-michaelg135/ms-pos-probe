@@ -54,6 +54,7 @@ builder.Services.AddHttpClient("AiService", client =>
 var app = builder.Build();
 
 // ── Middleware Pipeline ──
+app.UseWebSockets(); // US-PROBE-025: Enable WebSocket proxying
 app.UseCors("AllowFrontends");
 
 // US-PROBE-002: Correlation ID + POS traffic tagging

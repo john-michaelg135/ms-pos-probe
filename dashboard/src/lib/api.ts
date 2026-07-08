@@ -216,4 +216,95 @@ export async function fetchSalesByChannel(
   return data;
 }
 
+// ── Sprint 3: Alerts & Metrics ──
+
+export interface AlertItem {
+  alert_id: string;
+  order_id: string;
+  transaction_amount: number;
+  anomaly_score: number;
+  risk_level: string;
+  reason: string;
+  cashier_id: string | null;
+  cashier_name: string | null;
+  location_id: number | null;
+  location_name: string | null;
+  detected_at: string;
+  status: string;
+}
+
+export interface AlertsResponse {
+  alerts: AlertItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface BacktestResponse {
+  status: string;
+  engine: string;
+  metrics: Array<{
+    variation_name: string;
+    mape: number;
+    mae: number;
+    r_squared: number;
+    engine: string;
+  }>;
+  overall: {
+    avg_mape: number;
+    avg_mae: number;
+    avg_r_squared: number;
+    passed: number;
+    total: number;
+    pass_threshold: number;
+    overall_pass: boolean;
+  };
+}
+
+export interface AnomalyMetricsResponse {
+  status: string;
+  trained_at: string;
+  contamination: number;
+  metrics: {
+    precision: number;
+    recall: number;
+    f1_score: number;
+    confusion_matrix: {
+      true_negative: number;
+      false_positive: number;
+      false_negative: number;
+      true_positive: number;
+    };
+  };
+  pass_threshold: number;
+  overall_pass: boolean;
+}
+
+export async function fetchAlerts(params: {
+  page?: number;
+  risk_level?: string;
+  status?: string;
+  cashier_id?: string;
+  date_from?: string;
+  date_to?: string;
+}): Promise<AlertsResponse> {
+  const { data } = await api.get<AlertsResponse>("/api/probe/alerts", { params });
+  return data;
+}
+
+export async function updateAlertStatus(alertId: string, status: string): Promise<void> {
+  await api.put(`/api/probe/alerts/${alertId}/status`, { status });
+}
+
+export async function fetchForecastBacktest(): Promise<BacktestResponse> {
+  const { data } = await api.get<BacktestResponse>("/api/probe/forecast/backtest");
+  return data;
+}
+
+export async function fetchAnomalyMetrics(): Promise<AnomalyMetricsResponse> {
+  const { data } = await api.get<AnomalyMetricsResponse>("/api/probe/anomaly/metrics");
+  return data;
+}
+
 export default api;

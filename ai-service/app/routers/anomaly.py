@@ -145,6 +145,21 @@ async def detect_anomaly(
     # Save anomaly to DuckDB
     if is_anomaly:
         alert_id = f"ALT-{uuid.uuid4().hex[:12]}"
+        alert_data = {
+            "alert_id": alert_id,
+            "order_id": payload.order_id,
+            "transaction_amount": payload.total_amount,
+            "anomaly_score": round(float(score), 4),
+            "risk_level": risk_level,
+            "reason": reason,
+            "cashier_id": payload.cashier_id,
+            "cashier_name": payload.cashier_name,
+            "location_id": payload.location_id,
+            "location_name": payload.location_name,
+            "detected_at": datetime.now(timezone.utc).isoformat(),
+            "status": "New",
+        }
+
         try:
             conn = get_duckdb()
             conn.execute("""
@@ -165,6 +180,14 @@ async def detect_anomaly(
             ])
         except Exception:
             pass  # Don't fail the response if DuckDB write fails
+
+        # US-PROBE-025: Broadcast to connected WebSocket clients
+        try:
+            from app.routers.alerts import broadcast_alert
+            import asyncio
+            asyncio.create_task(broadcast_alert(alert_data))
+        except Exception:
+            pass
 
     return AnomalyResponse(
         is_anomaly=is_anomaly,

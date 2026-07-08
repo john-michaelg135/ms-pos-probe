@@ -16,6 +16,8 @@ from app.routers import sync
 from app.routers import analytics
 from app.routers import forecast
 from app.routers import anomaly
+from app.routers import alerts
+from app.routers import metrics
 from app.services.database import get_duckdb
 from app.schemas.database import init_schema
 from app.jobs.scheduler import start_scheduler, stop_scheduler
@@ -99,3 +101,5 @@ app.include_router(sync.router)
 app.include_router(analytics.router)
 app.include_router(forecast.router)
 app.include_router(anomaly.router)
+app.include_router(alerts.router)
+app.include_router(metrics.router)
