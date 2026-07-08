@@ -121,4 +121,99 @@ export async function triggerForceSync(): Promise<SyncForceResponse> {
   return data;
 }
 
+// ── Sprint 2: Forecast Types & Functions ──
+
+export interface ForecastItem {
+  date: string;
+  variation_id: number;
+  product_name: string;
+  variation_name: string;
+  predicted_quantity: number;
+  lower_bound: number;
+  upper_bound: number;
+}
+
+export async function fetchForecast(
+  days: number = 7,
+  variationId?: number
+): Promise<ForecastItem[]> {
+  const params: Record<string, string | number> = { days };
+  if (variationId) params.variation_id = variationId;
+  const { data } = await api.get<ForecastItem[]>("/api/probe/forecast", { params });
+  return data;
+}
+
+// ── Sprint 2: Analytics Types & Functions ──
+
+export interface RevenueItem {
+  period: string;
+  total_revenue: number;
+  total_orders: number;
+  total_quantity: number;
+}
+
+export interface LocationSalesItem {
+  location_name: string;
+  total_revenue: number;
+  total_quantity: number;
+}
+
+export interface ProductSalesItem {
+  product_name: string;
+  variation_name: string;
+  total_revenue: number;
+  total_quantity: number;
+}
+
+export interface ChannelSalesItem {
+  order_source: string;
+  total_revenue: number;
+  total_quantity: number;
+}
+
+export async function fetchRevenue(
+  groupBy: "day" | "week" | "month" = "day",
+  dateFrom?: string,
+  dateTo?: string
+): Promise<RevenueItem[]> {
+  const params: Record<string, string> = { group_by: groupBy };
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  const { data } = await api.get<RevenueItem[]>("/api/probe/analytics/revenue", { params });
+  return data;
+}
+
+export async function fetchSalesByLocation(
+  dateFrom?: string,
+  dateTo?: string
+): Promise<LocationSalesItem[]> {
+  const params: Record<string, string> = {};
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  const { data } = await api.get<LocationSalesItem[]>("/api/probe/analytics/sales-by-location", { params });
+  return data;
+}
+
+export async function fetchSalesByProduct(
+  dateFrom?: string,
+  dateTo?: string
+): Promise<ProductSalesItem[]> {
+  const params: Record<string, string> = {};
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  const { data } = await api.get<ProductSalesItem[]>("/api/probe/analytics/sales-by-product", { params });
+  return data;
+}
+
+export async function fetchSalesByChannel(
+  dateFrom?: string,
+  dateTo?: string
+): Promise<ChannelSalesItem[]> {
+  const params: Record<string, string> = {};
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  const { data } = await api.get<ChannelSalesItem[]>("/api/probe/analytics/sales-by-channel", { params });
+  return data;
+}
+
 export default api;

@@ -13,6 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import get_settings
 from app.routers import health
 from app.routers import sync
+from app.routers import analytics
+from app.routers import forecast
+from app.routers import anomaly
 from app.services.database import get_duckdb
 from app.schemas.database import init_schema
 from app.jobs.scheduler import start_scheduler, stop_scheduler
@@ -52,6 +55,15 @@ async def lifespan(app: FastAPI):
     # US-PROBE-006: Start background scheduler
     start_scheduler()
 
+    # US-PROBE-017: Load Isolation Forest model into app.state at startup
+    from app.routers.anomaly import load_iforest_model
+    artifacts = load_iforest_model()
+    if artifacts:
+        app.state.iforest_artifacts = artifacts
+        logger.info("iforest_model_loaded", trained_at=artifacts.get("trained_at", "unknown"))
+    else:
+        logger.warning("iforest_model_not_found")
+
     yield
 
     # Shutdown
@@ -84,3 +96,6 @@ app.add_middleware(
 # ── Routers ──
 app.include_router(health.router)
 app.include_router(sync.router)
+app.include_router(analytics.router)
+app.include_router(forecast.router)
+app.include_router(anomaly.router)

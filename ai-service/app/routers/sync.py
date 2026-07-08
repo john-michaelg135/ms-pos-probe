@@ -67,7 +67,9 @@ async def force_sync(token: dict = Depends(verify_token)):
     _sync_in_progress = True
     try:
         result = await run_sync_pipeline()
-        _last_manual_sync = datetime.now(timezone.utc)
+        # Only rate-limit after a SUCCESSFUL sync (no error key)
+        if "error" not in result:
+            _last_manual_sync = datetime.now(timezone.utc)
         return result
     finally:
         _sync_in_progress = False

@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "your_jwt_secret_here"
     jwt_algorithm: str = "HS256"
 
+    # Auth toggle (false = bypass JWT for dev)
+    auth_enabled: bool = False
+
     @property
     def postgres_dsn(self) -> str:
         return (

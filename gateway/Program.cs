@@ -1,4 +1,7 @@
+using Polly;
+using Polly.Extensions.Http;
 using PosProbe.Gateway.Middlewares;
+using PosProbe.Gateway.Services;
 
 // ── Load .env file ──
 DotNetEnv.Env.Load();
@@ -33,6 +36,21 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ── US-PROBE-018: Anomaly detection pipeline ──
+builder.Services.AddSingleton<AnomalyCloneChannel>();
+builder.Services.AddHostedService<AnomalyForwarderService>();
+
+// HTTP client for AI service with Polly retry policy
+var aiServiceUrl = Environment.GetEnvironmentVariable("AI_SERVICE_URL") ?? "http://localhost:8000";
+builder.Services.AddHttpClient("AiService", client =>
+{
+    client.BaseAddress = new Uri(aiServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+})
+.AddPolicyHandler(HttpPolicyExtensions
+    .HandleTransientHttpError()
+    .WaitAndRetryAsync(2, retryAttempt => TimeSpan.FromMilliseconds(200 * retryAttempt)));
+
 var app = builder.Build();
 
 // ── Middleware Pipeline ──
@@ -41,6 +59,9 @@ app.UseCors("AllowFrontends");
 // US-PROBE-002: Correlation ID + POS traffic tagging
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<PosTrafficTaggingMiddleware>();
+
+// US-PROBE-018: Clone high-risk transactions for anomaly detection
+app.UseMiddleware<TransactionCloningMiddleware>();
 
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new
