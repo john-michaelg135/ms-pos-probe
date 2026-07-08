@@ -395,18 +395,76 @@ The AI service uses DuckDB (`ai-service/data/analytics.duckdb`) for analytics da
 1. **Real data** — Synced from the legacy PostgreSQL every 10 minutes (or via "Sync Now" button)
 2. **Synthetic data** — 12 months of generated training data for ML models (21,472 records)
 
-#### Generate Synthetic Data (for ML training)
+#### How Forecasting Works
+
+- Models are **automatically re-trained every Sunday at 2:00 AM** using whatever data is in DuckDB
+- Forecasting requires **at least 30 distinct days** of sales data per product variation
+- The forecast cache in Redis expires every 6 hours — fresh predictions are generated from the model
+- After initial training, predictions appear on the dashboard automatically with no manual steps
+
+| Data age | What happens |
+|----------|-------------|
+| Days 1–29 | Forecast page shows "No data available" — not enough history |
+| Day 30+ | Next auto-training (Sunday 2AM) creates models → forecast appears |
+| Day 90+ | Better accuracy — captures weekly patterns |
+| Day 365+ | Best accuracy — captures seasonality, holidays, bazaar spikes |
+
+#### Generate Synthetic Data (for ML training / demo)
+
+Use this to populate DuckDB with realistic fake data for demonstrations:
 
 ```bash
 cd ai-service
+
+# 1. Stop the AI service (Ctrl+C in its terminal) — DuckDB only allows one writer
 .\venv\Scripts\activate
-# Stop the AI service first (DuckDB can only have one writer)
+
+# 2. Generate 12 months of synthetic transactions
 python scripts/generate_synthetic_data.py
+
+# 3. Train the forecast model on synthetic data
+python scripts/train_prophet.py
+
+# 4. Train the anomaly detection model
+python scripts/train_iforest.py
+
+# 5. Restart the AI service
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+#### Completely Remove Synthetic Data & Reset to Real Data Only
+
+To wipe all synthetic/cached data and start fresh with only real POS transactions:
+
+```bash
+cd ai-service
+
+# 1. Stop the AI service (Ctrl+C in its terminal)
+.\venv\Scripts\activate
+
+# 2. Run the clean slate script (clears DuckDB + Redis cache + sync watermark)
+python scripts/clean_slate.py
+
+# 3. Delete trained model files (they were trained on synthetic data)
+del models\artifacts\*.pkl
+
+# 4. Flush Redis completely (removes any remaining forecast cache)
+python -c "import redis; r = redis.Redis(); r.flushdb(); print('Redis flushed')"
+
+# 5. Restart the AI service
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 6. Click "Sync Now" on the dashboard to pull fresh real data from the legacy system
+```
+
+After this, the dashboard will show:
+- **Sales Analytics** — Only real POS transactions (from Sync Now)
+- **Demand Forecast** — Empty until 30+ days of real data accumulates and models auto-train
+- **Model Accuracy** — "No trained model found" until next auto-training or manual training
 
 #### Restore Synthetic Data from Backup
 
-If you cleared the synthetic data and need it back for ML model training:
+If you need the synthetic data back (e.g., for the academic defense demo):
 
 ```bash
 cd ai-service
@@ -416,50 +474,39 @@ cd ai-service
 # 2. Copy the backup file over the current database
 copy data\analytics_backup_with_synthetic.duckdb data\analytics.duckdb
 
-# 3. Restart the AI service
+# 3. Re-train models on the restored data
 .\venv\Scripts\activate
+python scripts/train_prophet.py
+python scripts/train_iforest.py
+
+# 4. Flush Redis cache (so forecast serves fresh predictions from new models)
+python -c "import redis; r = redis.Redis(); r.flushdb(); print('Redis flushed')"
+
+# 5. Restart the AI service
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### Clear Synthetic Data (show only real POS data)
-
-To remove synthetic data and keep only real transactions synced from the legacy system:
-
-```bash
-cd ai-service
-
-# 1. Stop the AI service (Ctrl+C in its terminal)
-
-# 2. Run the backup & clear script
-.\venv\Scripts\activate
-python scripts/backup_and_clear_synthetic.py
-
-# 3. Restart the AI service
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-# 4. Click "Sync Now" on the dashboard to pull latest real data
-```
-
-#### Re-train ML Models (after data changes)
-
-After generating or restoring synthetic data, re-train the models:
+#### Re-train ML Models Manually (without waiting for Sunday)
 
 ```bash
 cd ai-service
 .\venv\Scripts\activate
 
 # 1. Stop the AI service first
-# 2. Train forecast model
+# 2. Train forecast model (reads from DuckDB)
 python scripts/train_prophet.py
 
-# 3. Train anomaly detection model
+# 3. Train anomaly detection model (reads from DuckDB)
 python scripts/train_iforest.py
 
-# 4. Restart the AI service (models load at startup)
+# 4. Flush Redis forecast cache
+python -c "import redis; r = redis.Redis(); r.flushdb(); print('Redis flushed')"
+
+# 5. Restart the AI service (models load at startup)
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-> **Important:** Always stop the AI service before running data scripts. DuckDB only allows one process to write at a time. If you see "File is already open" errors, kill the uvicorn process first.
+> **Important:** Always stop the AI service before running data/training scripts. DuckDB only allows one process to write at a time. If you see "File is already open" errors, kill the uvicorn process first.
 
 ---
 
