@@ -7,6 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { fetchRevenue, fetchSalesByLocation, fetchSalesByProduct, fetchSalesByChannel } from "@/lib/api";
+import { formatDate, formatDateShort } from "@/lib/format-date";
 
 const TABS = [
   { id: "revenue", label: "Revenue Trends" },
@@ -119,9 +120,9 @@ function RevenueChart({ groupBy, dateFrom, dateTo }: { groupBy: "day" | "week" |
       <ResponsiveContainer width="100%" height={320}>
         <BarChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(102,112,133,0.15)" vertical={false} />
-          <XAxis dataKey="period" tick={{ fontSize: 10, fill: "#667085" }} tickFormatter={(v) => v.slice(5)} />
+          <XAxis dataKey="period" tick={{ fontSize: 10, fill: "#667085" }} tickFormatter={formatDateShort} />
           <YAxis tick={{ fontSize: 10, fill: "#667085" }} tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`} width={55} />
-          <Tooltip cursor={{ fill: "rgba(70,95,255,0.06)" }} formatter={(v) => [`₱${Number(v).toLocaleString()}`, "Revenue"]} contentStyle={{ background: "rgba(26,34,49,0.95)", border: "1px solid #2d3748", borderRadius: 12, fontSize: 12 }} labelStyle={{ color: "#f9fafb", marginBottom: 4 }} itemStyle={{ color: "#e4e7ec" }} />
+          <Tooltip cursor={{ fill: "rgba(70,95,255,0.06)" }} formatter={(v) => [`₱${Number(v).toLocaleString()}`, "Revenue"]} contentStyle={{ background: "rgba(26,34,49,0.95)", border: "1px solid #2d3748", borderRadius: 12, fontSize: 12 }} labelStyle={{ color: "#f9fafb", marginBottom: 4 }} itemStyle={{ color: "#e4e7ec" }} labelFormatter={(label) => formatDate(String(label))} />
           <Bar dataKey="total_revenue" fill="#465fff" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>

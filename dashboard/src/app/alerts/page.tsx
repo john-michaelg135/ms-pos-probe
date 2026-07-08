@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Wifi, WifiOff, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { fetchAlerts, updateAlertStatus, AlertItem } from "@/lib/api";
+import { formatDateTime } from "@/lib/format-date";
 
 const RISK_COLORS: Record<string, string> = {
   High: "border-l-error-500 bg-error-50 dark:bg-error-500/10",
@@ -162,7 +163,7 @@ export default function AlertsPage() {
                 <tbody>
                   {alertsData.alerts.map((alert) => (
                     <tr key={alert.alert_id} className={`border-b border-gray-100 dark:border-gray-800 border-l-4 ${RISK_COLORS[alert.risk_level] || ""}`}>
-                      <td className="py-2.5 px-2 text-gray-700 dark:text-gray-300">{new Date(alert.detected_at).toLocaleString()}</td>
+                      <td className="py-2.5 px-2 text-gray-700 dark:text-gray-300">{formatDateTime(alert.detected_at)}</td>
                       <td className="py-2.5 px-2 text-gray-900 dark:text-gray-100 font-medium">{alert.order_id}</td>
                       <td className="py-2.5 px-2 text-right text-gray-900 dark:text-gray-100">₱{alert.transaction_amount.toLocaleString()}</td>
                       <td className="py-2.5 px-2"><RiskBadge level={alert.risk_level} /></td>
@@ -212,7 +213,7 @@ function AlertCard({ alert, onStatusUpdate }: { alert: AlertItem; onStatusUpdate
             <RiskBadge level={alert.risk_level} />
           </div>
           <p className="text-[11px] text-gray-600 dark:text-gray-400">{alert.reason}</p>
-          <p className="text-[10px] text-gray-400 mt-1">₱{alert.transaction_amount.toLocaleString()} • {alert.cashier_id ? `Cashier ${alert.cashier_id}` : "Unknown"} • {new Date(alert.detected_at).toLocaleTimeString()}</p>
+          <p className="text-[10px] text-gray-400 mt-1">₱{alert.transaction_amount.toLocaleString()} • {alert.cashier_id ? `Cashier ${alert.cashier_id}` : "Unknown"} • {formatDateTime(alert.detected_at)}</p>
         </div>
         <div className="flex gap-1">
           <button onClick={() => onStatusUpdate(alert.alert_id, "Reviewed")} className="p-1.5 rounded-lg hover:bg-white/50 dark:hover:bg-gray-700 btn-press" title="Mark as Reviewed"><CheckCircle size={14} className="text-success-500" /></button>

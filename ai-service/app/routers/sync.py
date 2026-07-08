@@ -7,6 +7,7 @@ import structlog
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.config.settings import get_settings
 from app.services.auth import verify_token
 from app.services.database import get_redis
 from app.jobs.sync_pipeline import run_sync_pipeline, WATERMARK_KEY
@@ -18,7 +19,12 @@ router = APIRouter(prefix="/sync", tags=["Sync"])
 # Rate limiting: track last manual sync time
 _last_manual_sync: datetime | None = None
 _sync_in_progress: bool = False
-RATE_LIMIT_SECONDS = 300  # 5 minutes
+
+
+def _get_rate_limit_seconds() -> int:
+    """Get rate limit from settings. Set SYNC_RATE_LIMIT_SECONDS=0 to disable."""
+    settings = get_settings()
+    return settings.sync_rate_limit_seconds
 
 
 @router.get("/status")
@@ -54,11 +60,12 @@ async def force_sync(token: dict = Depends(verify_token)):
             detail="Sync already in progress. Please wait for it to complete.",
         )
 
-    # Rate limiting
-    if _last_manual_sync:
+    # Rate limiting (skip if SYNC_RATE_LIMIT_SECONDS=0)
+    rate_limit = _get_rate_limit_seconds()
+    if rate_limit > 0 and _last_manual_sync:
         elapsed = (datetime.now(timezone.utc) - _last_manual_sync).total_seconds()
-        if elapsed < RATE_LIMIT_SECONDS:
-            remaining = int(RATE_LIMIT_SECONDS - elapsed)
+        if elapsed < rate_limit:
+            remaining = int(rate_limit - elapsed)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Rate limited. Next manual sync allowed in {remaining} seconds.",

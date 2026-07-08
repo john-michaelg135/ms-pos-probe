@@ -291,3 +291,25 @@ body:is(.dark *) {
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
+
+/* ── Print styles (US-PROBE-032) ── */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  aside, header, nav {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .card-hover:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}

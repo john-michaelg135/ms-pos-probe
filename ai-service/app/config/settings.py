@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Auth toggle (false = bypass JWT for dev)
     auth_enabled: bool = False
 
+    # Sync rate limit in seconds (0 = disabled)
+    sync_rate_limit_seconds: int = 300
+
     @property
     def postgres_dsn(self) -> str:
         return (

@@ -11,7 +11,7 @@ import {
   CircleX,
   RefreshCw,
 } from "lucide-react";
-import { fetchGatewayHealth, fetchAiServiceHealth, fetchSyncStatus, fetchRevenue, triggerForceSync } from "@/lib/api";
+import { fetchGatewayHealth, fetchAiServiceHealth, fetchSyncStatus, fetchRevenue, triggerForceSync, fetchAlerts } from "@/lib/api";
 
 export default function HomePage() {
   const queryClient = useQueryClient();
@@ -46,6 +46,14 @@ export default function HomePage() {
 
   const totalSalesToday = todayRevenue.data?.[0]?.total_revenue ?? null;
   const totalOrdersToday = todayRevenue.data?.[0]?.total_orders ?? null;
+
+  // Active alerts count (unreviewed)
+  const activeAlerts = useQuery({
+    queryKey: ["alerts", "active-count"],
+    queryFn: () => fetchAlerts({ status: "New", page: 1 }),
+    refetchInterval: 30000,
+  });
+  const alertCount = activeAlerts.data?.total ?? 0;
 
   // Sync Now handler
   const handleSyncNow = async () => {
@@ -106,8 +114,8 @@ export default function HomePage() {
         <SummaryCard
           icon={<ShieldAlert size={18} />}
           label="Active Alerts"
-          value="—"
-          sublabel="Available in Sprint 3"
+          value={activeAlerts.isLoading ? "..." : `${alertCount}`}
+          sublabel={alertCount > 0 ? "Unreviewed anomalies" : "No active alerts"}
           iconColor="bg-warning-500/15 text-warning-400"
           delay={3}
         />

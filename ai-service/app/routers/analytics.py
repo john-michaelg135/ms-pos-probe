@@ -36,7 +36,7 @@ async def get_revenue(
     }[group_by]
 
     location_filter = "AND location_id = ?" if location_id else ""
-    params = [str(date_from), str(date_to)]
+    params = [str(date_from), str(date_to) + " 23:59:59"]
     if location_id:
         params.append(location_id)
 
@@ -89,7 +89,7 @@ async def get_sales_by_location(
         ORDER BY total_revenue DESC
     """
 
-    result = conn.execute(query, [str(date_from), str(date_to)]).fetchall()
+    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59"]).fetchall()
     columns = ["location_name", "total_revenue", "total_quantity"]
 
     return [dict(zip(columns, row)) for row in result]
@@ -123,7 +123,7 @@ async def get_sales_by_product(
         ORDER BY total_quantity DESC
     """
 
-    result = conn.execute(query, [str(date_from), str(date_to)]).fetchall()
+    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59"]).fetchall()
     columns = ["product_name", "variation_name", "total_revenue", "total_quantity"]
 
     return [dict(zip(columns, row)) for row in result]
@@ -156,7 +156,7 @@ async def get_sales_by_channel(
         ORDER BY total_revenue DESC
     """
 
-    result = conn.execute(query, [str(date_from), str(date_to)]).fetchall()
+    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59"]).fetchall()
     columns = ["order_source", "total_revenue", "total_quantity"]
 
     return [dict(zip(columns, row)) for row in result]

@@ -97,7 +97,7 @@ All enhancements are implemented as a **completely separate system**. Zero modif
 |-------|-----------|---------|---------|
 | Gateway | C# .NET + YARP | .NET 10 | Reverse proxy, traffic routing, payload cloning |
 | AI Service | Python + FastAPI | Python 3.13 | ML inference, analytics, batch sync |
-| Forecasting | Facebook Prophet | Latest | Time-series demand prediction |
+| Forecasting | Facebook Prophet / statsmodels | Latest | Time-series demand prediction |
 | Anomaly Detection | Scikit-Learn (Isolation Forest) | Latest | Unsupervised fraud detection |
 | Analytics DB | DuckDB | Latest | Columnar OLAP for fast aggregations |
 | Cache | Redis (Memurai on Windows) | Latest | In-memory forecast caching (6hr TTL) |
@@ -127,6 +127,19 @@ All enhancements are implemented as a **completely separate system**. Zero modif
 | **Redis** (Memurai for Windows) | In-memory cache for ML predictions | [Memurai Download](https://www.memurai.com/get-memurai) |
 
 > **Note:** DuckDB is embedded (file-based) and installed as a Python package — no separate server needed.
+
+### Facebook Prophet Setup (Optional)
+
+Prophet requires a C++ compiler (CmdStan backend). On Python 3.13 + Windows, it has known compatibility issues with NumPy 2.x and Pandas 2.x. The system uses **statsmodels Exponential Smoothing** as a drop-in fallback that produces identical API output.
+
+To enable Prophet natively (requires Python 3.11):
+1. Install MSYS2 from [msys2.org](https://www.msys2.org/) (default `C:\msys64`)
+2. In MSYS2 UCRT64 terminal: `pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make`
+3. Add `C:\msys64\ucrt64\bin` to your Windows PATH
+4. In the ai-service venv: `python -c "import cmdstanpy; cmdstanpy.install_cmdstan()"`
+5. Use Python 3.11 for full Prophet compatibility
+
+> For the academic defense, the statsmodels fallback demonstrates the same forecasting concepts and produces the same API response format.
 
 ### Legacy System (must be running)
 
@@ -365,7 +378,7 @@ cd gateway && dotnet run                  # Run
 # AI Service
 cd ai-service && pip install -r requirements.txt   # Install deps
 cd ai-service && uvicorn app.main:app --reload     # Run with hot reload
-cd ai-service && python scripts/generate_data.py   # Generate synthetic data
+cd ai-service && python scripts/generate_synthetic_data.py   # Generate synthetic data
 cd ai-service && python scripts/train_prophet.py   # Train forecast model
 cd ai-service && python scripts/train_iforest.py   # Train anomaly model
 
@@ -374,6 +387,79 @@ cd dashboard && npm install               # Install deps
 cd dashboard && npm run dev               # Run dev server
 cd dashboard && npm run build             # Production build
 ```
+
+### Data Management
+
+The AI service uses DuckDB (`ai-service/data/analytics.duckdb`) for analytics data. There are two data sources:
+
+1. **Real data** — Synced from the legacy PostgreSQL every 10 minutes (or via "Sync Now" button)
+2. **Synthetic data** — 12 months of generated training data for ML models (21,472 records)
+
+#### Generate Synthetic Data (for ML training)
+
+```bash
+cd ai-service
+.\venv\Scripts\activate
+# Stop the AI service first (DuckDB can only have one writer)
+python scripts/generate_synthetic_data.py
+```
+
+#### Restore Synthetic Data from Backup
+
+If you cleared the synthetic data and need it back for ML model training:
+
+```bash
+cd ai-service
+
+# 1. Stop the AI service (Ctrl+C in its terminal)
+
+# 2. Copy the backup file over the current database
+copy data\analytics_backup_with_synthetic.duckdb data\analytics.duckdb
+
+# 3. Restart the AI service
+.\venv\Scripts\activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+#### Clear Synthetic Data (show only real POS data)
+
+To remove synthetic data and keep only real transactions synced from the legacy system:
+
+```bash
+cd ai-service
+
+# 1. Stop the AI service (Ctrl+C in its terminal)
+
+# 2. Run the backup & clear script
+.\venv\Scripts\activate
+python scripts/backup_and_clear_synthetic.py
+
+# 3. Restart the AI service
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 4. Click "Sync Now" on the dashboard to pull latest real data
+```
+
+#### Re-train ML Models (after data changes)
+
+After generating or restoring synthetic data, re-train the models:
+
+```bash
+cd ai-service
+.\venv\Scripts\activate
+
+# 1. Stop the AI service first
+# 2. Train forecast model
+python scripts/train_prophet.py
+
+# 3. Train anomaly detection model
+python scripts/train_iforest.py
+
+# 4. Restart the AI service (models load at startup)
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+> **Important:** Always stop the AI service before running data scripts. DuckDB only allows one process to write at a time. If you see "File is already open" errors, kill the uvicorn process first.
 
 ---
 

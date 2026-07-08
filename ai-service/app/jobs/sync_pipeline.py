@@ -84,7 +84,8 @@ def _fetch_batch(cursor, watermark: str, offset: int) -> list[dict]:
             o."SubmittedBy"::TEXT                   AS cashier_id,
             NULL                                    AS cashier_name,
             o."CustomerId"::TEXT                    AS customer_id,
-            o."CreatedAt"                           AS transaction_date
+            o."CreatedAt"                           AS transaction_date,
+            NOW()                                   AS synced_at
         FROM "Orders" o
         INNER JOIN "OrderItems" oi ON oi."OrderId" = o."OrderId"
         INNER JOIN "ProductVariations" pv ON pv."VariationId" = oi."VariationId"
@@ -132,7 +133,8 @@ def _fetch_refund_batch(cursor, watermark: str, offset: int) -> list[dict]:
             rr."RequestedBy"::TEXT                  AS cashier_id,
             NULL                                    AS cashier_name,
             NULL                                    AS customer_id,
-            rr."ApprovedAt"                         AS transaction_date
+            rr."ApprovedAt"                         AS transaction_date,
+            NOW()                                   AS synced_at
         FROM "RefundRequests" rr
         INNER JOIN "ProductVariations" pv ON pv."VariationId" = rr."VariationId"
         INNER JOIN "Products" p ON p."ProductId" = pv."ProductId"
@@ -166,6 +168,35 @@ def _upsert_to_duckdb(df: pd.DataFrame) -> int:
     """
     if df.empty:
         return 0
+
+    # Ensure proper column types for DuckDB compatibility
+    str_cols = [
+        "transaction_id", "order_id", "order_source", "location_name",
+        "product_name", "variation_name", "discount_type", "refund_reason",
+        "cashier_id", "cashier_name", "customer_id",
+    ]
+    for col in str_cols:
+        if col in df.columns:
+            df[col] = df[col].astype("object").where(df[col].notna(), None)
+
+    numeric_cols = ["unit_price", "total_amount", "discount_amount"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    int_cols = ["location_id", "product_id", "variation_id", "quantity"]
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+
+    if "is_refund" in df.columns:
+        df["is_refund"] = df["is_refund"].astype(bool)
+
+    if "transaction_date" in df.columns:
+        df["transaction_date"] = pd.to_datetime(df["transaction_date"], errors="coerce")
+
+    if "synced_at" in df.columns:
+        df["synced_at"] = pd.to_datetime(df["synced_at"], errors="coerce")
 
     conn = get_duckdb()
 
