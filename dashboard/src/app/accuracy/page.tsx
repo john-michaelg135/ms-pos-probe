@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Brain, TrendingUp } from "lucide-react";
+import { CheckCircle, XCircle, Brain, TrendingUp, Info } from "lucide-react";
 import { fetchForecastBacktest, fetchAnomalyMetrics } from "@/lib/api";
 
 export default function AccuracyPage() {
@@ -47,10 +48,10 @@ export default function AccuracyPage() {
           <div>
             {/* Key Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <MetricCard label="MAPE (Avg)" value={`${backtest.data.overall.avg_mape}%`} sublabel={`Target: ≤ ${backtest.data.overall.pass_threshold}%`} pass={backtest.data.overall.overall_pass} />
-              <MetricCard label="MAE (Avg)" value={`${backtest.data.overall.avg_mae}`} sublabel="Mean Absolute Error" />
-              <MetricCard label="R²" value={`${backtest.data.overall.avg_r_squared}`} sublabel="Coefficient of Determination" />
-              <MetricCard label="Variations Passed" value={`${backtest.data.overall.passed}/${backtest.data.overall.total}`} sublabel="MAPE ≤ 20%" />
+              <MetricCard label="MAPE (Avg)" value={`${backtest.data.overall.avg_mape}%`} sublabel={`Target: ≤ ${backtest.data.overall.pass_threshold}%`} pass={backtest.data.overall.overall_pass} tooltip="Mean Absolute Percentage Error (MAPE) measures the average percentage difference between predicted and actual values. Lower values indicate better accuracy. A MAPE ≤ 20% is generally considered acceptable for demand forecasting." />
+              <MetricCard label="MAE (Avg)" value={`${backtest.data.overall.avg_mae}`} sublabel="Mean Absolute Error" tooltip="Mean Absolute Error (MAE) measures the average magnitude of errors in predictions without considering their direction. It represents the average absolute difference between predicted and actual values. Lower MAE means more accurate predictions." />
+              <MetricCard label="R²" value={`${backtest.data.overall.avg_r_squared}`} sublabel="Coefficient of Determination" tooltip="R² (R-Squared) indicates how well the model's predictions fit the actual data. Values range from 0 to 1, where 1 means perfect prediction. Values above 0.7 are generally considered good. Negative values indicate the model performs worse than a simple mean." />
+              <MetricCard label="Variations Passed" value={`${backtest.data.overall.passed}/${backtest.data.overall.total}`} sublabel="MAPE ≤ 20%" tooltip="Variations Passed shows how many product variations achieved a MAPE within the acceptable threshold (≤ 20%). A higher ratio indicates the model generalizes well across different product variations." />
             </div>
 
             {/* Per-variation table */}
@@ -108,14 +109,17 @@ export default function AccuracyPage() {
           <div>
             {/* Key Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <MetricCard label="Precision" value={`${(anomalyMetrics.data.metrics.precision * 100).toFixed(1)}%`} sublabel="True positive rate" />
-              <MetricCard label="Recall" value={`${(anomalyMetrics.data.metrics.recall * 100).toFixed(1)}%`} sublabel="Detection rate" />
-              <MetricCard label="F1-Score" value={`${(anomalyMetrics.data.metrics.f1_score * 100).toFixed(1)}%`} sublabel={`Target: ≥ ${(anomalyMetrics.data.pass_threshold * 100)}%`} pass={anomalyMetrics.data.overall_pass} />
-              <MetricCard label="Contamination" value={`${(anomalyMetrics.data.contamination * 100).toFixed(0)}%`} sublabel="Expected anomaly rate" />
+              <MetricCard label="Precision" value={`${(anomalyMetrics.data.metrics.precision * 100).toFixed(1)}%`} sublabel="True positive rate" tooltip="Precision measures the proportion of detected anomalies that are actual anomalies. A high precision means fewer false alarms. Interpreted as: of all transactions flagged as anomalous, what percentage truly are anomalies." />
+              <MetricCard label="Recall" value={`${(anomalyMetrics.data.metrics.recall * 100).toFixed(1)}%`} sublabel="Detection rate" tooltip="Recall (Sensitivity) measures the proportion of actual anomalies that were correctly detected. A high recall means fewer missed anomalies. Interpreted as: of all real anomalies, what percentage did the model catch." />
+              <MetricCard label="F1-Score" value={`${(anomalyMetrics.data.metrics.f1_score * 100).toFixed(1)}%`} sublabel={`Target: ≥ ${(anomalyMetrics.data.pass_threshold * 100)}%`} pass={anomalyMetrics.data.overall_pass} tooltip="F1-Score is the harmonic mean of Precision and Recall, providing a single balanced metric. Values range from 0% to 100%. A score ≥ 85% indicates the model effectively balances anomaly detection with false alarm minimization." />
+              <MetricCard label="Contamination" value={`${(anomalyMetrics.data.contamination * 100).toFixed(0)}%`} sublabel="Expected anomaly rate" tooltip="Contamination is a hyperparameter that defines the expected proportion of anomalies in the dataset. It guides the Isolation Forest model on how aggressively to flag outliers. A typical value of 5% means we expect ~5% of transactions to be anomalous." />
             </div>
 
             {/* Confusion Matrix */}
-            <h3 className="text-[12px] font-semibold text-gray-900 dark:text-gray-50 mb-3">Confusion Matrix</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-[12px] font-semibold text-gray-900 dark:text-gray-50">Confusion Matrix</h3>
+              <InfoTooltip text="A Confusion Matrix is a table that visualizes the performance of a classification model. It shows four outcomes: True Negatives (correctly identified normal transactions), False Positives (normal transactions incorrectly flagged as anomalies), False Negatives (anomalies missed by the model), and True Positives (anomalies correctly detected). Ideally, TN and TP should be high while FP and FN should be low." position="top-left" />
+            </div>
             <div className="grid grid-cols-2 gap-2 max-w-[320px]">
               <div className="bg-success-50 dark:bg-success-500/10 rounded-xl p-3 text-center">
                 <p className="text-[10px] text-gray-500 mb-1">True Negative</p>
@@ -145,15 +149,48 @@ export default function AccuracyPage() {
   );
 }
 
-function MetricCard({ label, value, sublabel, pass }: { label: string; value: string; sublabel: string; pass?: boolean }) {
+function MetricCard({ label, value, sublabel, pass, tooltip }: { label: string; value: string; sublabel: string; pass?: boolean; tooltip?: string }) {
   return (
-    <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4">
-      <p className="text-[10px] text-gray-500 uppercase font-medium mb-1">{label}</p>
+    <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 relative">
+      <div className="flex items-start justify-between">
+        <p className="text-[10px] text-gray-500 uppercase font-medium mb-1">{label}</p>
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </div>
       <div className="flex items-center gap-2">
         <p className="text-lg font-bold text-gray-900 dark:text-gray-50">{value}</p>
         {pass !== undefined && (pass ? <CheckCircle size={14} className="text-success-500" /> : <XCircle size={14} className="text-error-500" />)}
       </div>
       <p className="text-[10px] text-gray-400 mt-0.5">{sublabel}</p>
+    </div>
+  );
+}
+
+function InfoTooltip({ text, position = "top-right" }: { text: string; position?: "top-right" | "top-left" }) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        className="text-gray-400 hover:text-brand-500 transition-colors cursor-help"
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onFocus={() => setShow(true)}
+        onBlur={() => setShow(false)}
+        aria-label="More info"
+      >
+        <Info size={13} />
+      </button>
+      {show && (
+        <div className={`absolute z-50 bottom-full mb-2 w-64 p-3 bg-gray-900 dark:bg-gray-800 text-white text-[11px] leading-relaxed rounded-lg shadow-lg pointer-events-none ${
+          position === "top-left" ? "left-0" : "right-0"
+        }`}>
+          {text}
+          <div className={`absolute top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-gray-900 dark:border-t-gray-800 ${
+            position === "top-left" ? "left-2" : "right-2"
+          }`}></div>
+        </div>
+      )}
     </div>
   );
 }
