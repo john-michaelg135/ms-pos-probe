@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Info } from "lucide-react";
 import { fetchForecast, ForecastItem } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 import { VARIATION_ORDER, getVariationSortIndex } from "@/lib/variation-order";
@@ -207,16 +208,24 @@ export default function ForecastPage() {
         </h2>
 
         {summaryData.length > 0 ? (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
                   <th className="text-left py-3 px-2 text-gray-500 font-medium">Product</th>
                   <th className="text-left py-3 px-2 text-gray-500 font-medium">Variation</th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">Predicted</th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">Lower</th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">Upper</th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">Avg/Day</th>
+                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
+                    <span className="inline-flex items-center gap-1 justify-end">Predicted <HeaderTooltip text="The total predicted demand quantity for this product variation over the selected forecast window. This is the model's best estimate of how many units will be needed." /></span>
+                  </th>
+                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
+                    <span className="inline-flex items-center gap-1 justify-end">Lower <HeaderTooltip text="The lower bound of the prediction interval. Represents the minimum expected demand under pessimistic conditions. Useful for planning minimum production to avoid overstock." /></span>
+                  </th>
+                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
+                    <span className="inline-flex items-center gap-1 justify-end">Upper <HeaderTooltip text="The upper bound of the prediction interval. Represents the maximum expected demand under optimistic conditions. Useful for ensuring sufficient stock to meet potential peak demand." /></span>
+                  </th>
+                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
+                    <span className="inline-flex items-center gap-1 justify-end">Avg/Day <HeaderTooltip text="The average predicted daily demand, calculated by dividing the total predicted quantity by the number of forecast days. Helps in planning daily production schedules." /></span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -237,6 +246,32 @@ export default function ForecastPage() {
           <p className="text-[13px] text-gray-500">No data available.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function HeaderTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        className="text-gray-400 hover:text-brand-500 transition-colors cursor-help"
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onFocus={() => setShow(true)}
+        onBlur={() => setShow(false)}
+        aria-label="More info"
+      >
+        <Info size={12} />
+      </button>
+      {show && (
+        <div className="absolute z-50 top-full right-0 mt-2 w-56 p-3 bg-gray-900 dark:bg-gray-800 text-white text-[11px] leading-relaxed rounded-lg shadow-lg pointer-events-none text-left font-normal normal-case">
+          {text}
+          <div className="absolute bottom-full right-2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-gray-900 dark:border-b-gray-800"></div>
+        </div>
+      )}
     </div>
   );
 }
