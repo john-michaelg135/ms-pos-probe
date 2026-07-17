@@ -36,8 +36,9 @@ export default function HomePage() {
     refetchInterval: 60000,
   });
 
-  // Today's sales data
-  const today = new Date().toISOString().split("T")[0];
+  // Today's sales data (use local date, not UTC)
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const todayRevenue = useQuery({
     queryKey: ["analytics", "today", today],
     queryFn: () => fetchRevenue("day", today, today),
