@@ -14,6 +14,7 @@ numpy==2.3.0
 
 # ── Machine Learning ──
 scikit-learn==1.7.0
+statsmodels==0.14.6
 prophet==1.1.6
 
 # ── Databases ──

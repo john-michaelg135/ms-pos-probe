@@ -379,7 +379,8 @@ cd gateway && dotnet run                  # Run
 cd ai-service && pip install -r requirements.txt   # Install deps
 cd ai-service && uvicorn app.main:app --reload     # Run with hot reload
 cd ai-service && python scripts/generate_synthetic_data.py   # Generate synthetic data
-cd ai-service && python scripts/train_prophet.py   # Train forecast model
+cd ai-service && python scripts/train_prophet.py   # Train forecast model (requires 30+ days)
+cd ai-service && python scripts/train_dev.py       # Train forecast model (dev, no min data)
 cd ai-service && python scripts/train_iforest.py   # Train anomaly model
 
 # Dashboard
@@ -485,6 +486,37 @@ python -c "import redis; r = redis.Redis(); r.flushdb(); print('Redis flushed')"
 # 5. Restart the AI service
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+#### Dev Training (Force-Train with Limited Data)
+
+Use this when you have **fewer than 30 days** of real sales data but want to test the forecast pipeline end-to-end. The script bypasses the 30-day minimum threshold and adapts model complexity to whatever data exists (as few as 2 days).
+
+```bash
+cd ai-service
+.\venv\Scripts\activate
+
+# Run the dev training script (works even while AI service is running, op ai service if it throws and error)
+python scripts/train_dev.py
+```
+
+**Key differences from production training:**
+- Minimum threshold is **2 days** (instead of 30)
+- Automatically handles DuckDB file locks by creating a snapshot copy
+- Disables yearly/weekly seasonality when data is too short
+- Falls back to simpler trend-only models for very short series
+- Labels all output as `dev_mode: True` in metrics
+
+**Expected behavior with limited data:**
+| Data Days | MAPE (accuracy) | Notes |
+|-----------|-----------------|-------|
+| 2–7 | 100–200%+ | Models are essentially guessing — this is expected |
+| 7–14 | 50–100% | Captures basic trends but no weekly patterns |
+| 14–30 | 20–50% | Approaching usable accuracy |
+| 30+ | ≤20% (target) | Use production `train_prophet.py` instead |
+
+> **Note:** Models trained with `train_dev.py` are saved to the same `models/artifacts/` folder, so your forecast endpoints will serve predictions from them immediately. They will be overwritten next time the weekly auto-trainer runs (once you have 30+ days of data).
+
+---
 
 #### Re-train ML Models Manually (without waiting for Sunday)
 
