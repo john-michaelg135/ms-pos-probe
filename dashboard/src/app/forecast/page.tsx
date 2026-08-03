@@ -3,8 +3,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Info } from "lucide-react";
-import { fetchForecast, ForecastItem } from "@/lib/api";
+import { Info, TrendingUp, ShieldCheck, Zap, Package } from "lucide-react";
+import { fetchForecast, fetchForecastInsights, ForecastItem, ForecastInsightsResponse } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 import { VARIATION_ORDER, getVariationSortIndex } from "@/lib/variation-order";
 
@@ -28,10 +28,18 @@ const COLORS = [
 export default function ForecastPage() {
   const [days, setDays] = useState(7);
   const [productFilter, setProductFilter] = useState("all");
+  const [selectedVariationId, setSelectedVariationId] = useState<number | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["forecast", days],
     queryFn: () => fetchForecast(days),
+  });
+
+  // Fetch AI insights for the explanation cards
+  const { data: insights } = useQuery({
+    queryKey: ["forecast", "insights", days, selectedVariationId],
+    queryFn: () => fetchForecastInsights(days, selectedVariationId ?? undefined),
+    enabled: !!data && data.length > 0,
   });
 
   // Filter by product
@@ -41,7 +49,7 @@ export default function ForecastPage() {
     return data.filter((item) => item.product_name === productFilter);
   }, [data, productFilter]);
 
-  // Group by date for chart — use full product+variation name as key
+  // Group by date for chart
   const chartData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
     const grouped: Record<string, Record<string, number>> = {};
@@ -55,7 +63,7 @@ export default function ForecastPage() {
     return Object.entries(grouped).map(([date, vals]) => ({ date, ...vals }));
   }, [filteredData, productFilter]);
 
-  // Unique variation names for legend — sorted by canonical order
+  // Unique variation names for legend
   const variations = useMemo(() => {
     if (!filteredData) return [];
     const set = new Set(
@@ -71,6 +79,24 @@ export default function ForecastPage() {
       return getVariationSortIndex(fullA) - getVariationSortIndex(fullB);
     });
   }, [filteredData, productFilter]);
+
+  // Get available variations for the insights dropdown
+  const availableVariations = useMemo(() => {
+    if (!data) return [];
+    const map = new Map<number, { variation_id: number; product_name: string; variation_name: string }>();
+    data.forEach((item) => {
+      if (!map.has(item.variation_id)) {
+        map.set(item.variation_id, {
+          variation_id: item.variation_id,
+          product_name: item.product_name,
+          variation_name: item.variation_name,
+        });
+      }
+    });
+    return [...map.values()].sort((a, b) =>
+      getVariationSortIndex(undefined, a.variation_id) - getVariationSortIndex(undefined, b.variation_id)
+    );
+  }, [data]);
 
   // Summary table
   const summaryData = useMemo(() => {
@@ -138,7 +164,7 @@ export default function ForecastPage() {
       {/* Chart */}
       <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-1">
         <h2 className="text-[14px] font-semibold text-gray-900 dark:text-gray-50 mb-4">
-          Predicted Demand — {productFilter === "all" ? "All Products" : productFilter} (Next {days} Days)
+          Predicted Demand (Next {days} Days)
         </h2>
 
         {isLoading ? (
@@ -201,10 +227,78 @@ export default function ForecastPage() {
         )}
       </div>
 
-      {/* Summary Table */}
-      <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-2">
+      {/* AI Forecast Explanations & Key Drivers */}
+      {data && data.length > 0 && (
+        <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-brand-500/10 flex items-center justify-center">
+                <TrendingUp size={18} className="text-brand-500" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-semibold text-gray-900 dark:text-gray-50">AI Forecast Explanations & Key Drivers</h2>
+                <p className="text-[11px] text-gray-500">Data-backed demand insights derived from historical POS transaction patterns</p>
+              </div>
+              <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-semibold">
+                {insights?.engine || "Statsmodels"} Additive ML
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-gray-500">Analyze SKU:</span>
+              <select
+                value={selectedVariationId ?? "all"}
+                onChange={(e) => setSelectedVariationId(e.target.value === "all" ? null : Number(e.target.value))}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[12px] text-gray-900 dark:text-gray-100 outline-none"
+              >
+                <option value="all">All Variations (System Total)</option>
+                {availableVariations.map((v) => (
+                  <option key={v.variation_id} value={v.variation_id}>
+                    {v.product_name} {v.variation_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Insight Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Model Baseline & Confidence */}
+            <InsightCard
+              icon={<TrendingUp size={16} className="text-brand-500" />}
+              title="Model Baseline & Confidence"
+              content={insights?.model_baseline || "Loading model confidence data..."}
+            />
+
+            {/* Primary Forecast Demand Drivers */}
+            <InsightCard
+              icon={<Zap size={16} className="text-purple-500" />}
+              title="Primary Forecast Demand Drivers"
+              content={insights?.demand_drivers || "Loading demand driver analysis..."}
+            />
+
+            {/* SKU Velocity & Stockout Risk */}
+            <InsightCard
+              icon={<Package size={16} className="text-green-500" />}
+              title="SKU Velocity & Stockout Risk"
+              content={insights?.stockout_risk || "Loading stockout risk assessment..."}
+              badge={insights?.velocity_class}
+            />
+
+            {/* Safety Stock & Buffer Bounds */}
+            <InsightCard
+              icon={<ShieldCheck size={16} className="text-blue-500" />}
+              title="Safety Stock & Buffer Bounds"
+              content={insights?.safety_stock || "Loading safety stock recommendations..."}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Restocking Summary Table */}
+      <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-3">
         <h2 className="text-[14px] font-semibold text-gray-900 dark:text-gray-50 mb-4">
-          Recommended Production ({days}-Day Total) — {productFilter === "all" ? "All Products" : productFilter}
+          Recommended Restocking ({days}-Day Total) — {productFilter === "all" ? "All Products" : productFilter}
         </h2>
 
         {summaryData.length > 0 ? (
@@ -215,16 +309,16 @@ export default function ForecastPage() {
                   <th className="text-left py-3 px-2 text-gray-500 font-medium">Product</th>
                   <th className="text-left py-3 px-2 text-gray-500 font-medium">Variation</th>
                   <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Predicted <HeaderTooltip text="The total predicted demand quantity for this product variation over the selected forecast window. This is the model's best estimate of how many units will be needed." /></span>
+                    <span className="inline-flex items-center gap-1 justify-end">Predicted <HeaderTooltip text="The total predicted demand quantity for this product variation over the selected forecast window. This is the model's best estimate of how many units customers will purchase." /></span>
                   </th>
                   <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Lower <HeaderTooltip text="The lower bound of the prediction interval. Represents the minimum expected demand under pessimistic conditions. Useful for planning minimum production to avoid overstock." /></span>
+                    <span className="inline-flex items-center gap-1 justify-end">Min Restock <HeaderTooltip text="The minimum recommended restock quantity (lower bound). Represents the minimum expected demand. Stocking at this level minimizes overstock risk but may lead to stockouts on busy days." /></span>
                   </th>
                   <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Upper <HeaderTooltip text="The upper bound of the prediction interval. Represents the maximum expected demand under optimistic conditions. Useful for ensuring sufficient stock to meet potential peak demand." /></span>
+                    <span className="inline-flex items-center gap-1 justify-end">Max Restock <HeaderTooltip text="The maximum recommended restock quantity (upper bound). Represents peak expected demand. Stocking at this level ensures availability during surges but may lead to excess inventory." /></span>
                   </th>
                   <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Avg/Day <HeaderTooltip text="The average predicted daily demand, calculated by dividing the total predicted quantity by the number of forecast days. Helps in planning daily production schedules." /></span>
+                    <span className="inline-flex items-center gap-1 justify-end">Avg/Day <HeaderTooltip text="Average predicted daily restocking need. Useful for planning daily replenishment schedules and setting reorder points." /></span>
                   </th>
                 </tr>
               </thead>
@@ -246,6 +340,28 @@ export default function ForecastPage() {
           <p className="text-[13px] text-gray-500">No data available.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Insight Card Component ──
+function InsightCard({ icon, title, content, badge }: { icon: React.ReactNode; title: string; content: string; badge?: string }) {
+  return (
+    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <h3 className="text-[12px] font-semibold text-gray-900 dark:text-gray-50">{title}</h3>
+        {badge && (
+          <span className={`ml-auto px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+            badge === "Class A Fast-Mover" ? "bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400" :
+            badge === "Class B Moderate-Mover" ? "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400" :
+            "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+          }`}>
+            {badge}
+          </span>
+        )}
+      </div>
+      <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed">{content}</p>
     </div>
   );
 }

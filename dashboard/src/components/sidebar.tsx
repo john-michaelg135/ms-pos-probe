@@ -20,9 +20,10 @@ import { useThemeStore } from "@/stores/use-theme-store";
 
 const probeSubItems = [
   { href: "/forecast", label: "Demand Forecast" },
-  { href: "/forecast/quota", label: "Manufacturing Quota" },
+  { href: "/forecast/quota", label: "Restocking Quota" },
   { href: "/analytics", label: "Sales Analytics" },
   { href: "/alerts", label: "Anomaly Alerts" },
+  { href: "/reports", label: "Reports" },
   { href: "/accuracy", label: "Model Accuracy" },
 ];
 

@@ -143,6 +143,28 @@ export async function fetchForecast(
   return data;
 }
 
+// ── Forecast Insights (AI Explanation Cards) ──
+
+export interface ForecastInsightsResponse {
+  engine: string;
+  variation_name: string;
+  model_baseline: string;
+  demand_drivers: string;
+  stockout_risk: string;
+  safety_stock: string;
+  velocity_class: string;
+}
+
+export async function fetchForecastInsights(
+  days: number = 7,
+  variationId?: number
+): Promise<ForecastInsightsResponse> {
+  const params: Record<string, string | number> = { days };
+  if (variationId) params.variation_id = variationId;
+  const { data } = await api.get<ForecastInsightsResponse>("/api/probe/forecast/insights", { params });
+  return data;
+}
+
 // ── Sprint 2: Analytics Types & Functions ──
 
 export interface RevenueItem {
