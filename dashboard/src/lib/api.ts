@@ -319,6 +319,26 @@ export async function updateAlertStatus(alertId: string, status: string): Promis
   await api.put(`/api/probe/alerts/${alertId}/status`, { status });
 }
 
+export interface AlertExplanation {
+  alert_id: string;
+  explanation: string;
+  pattern_summary: string;
+  historical_context: {
+    avg_transaction_amount: number | null;
+    std_transaction_amount: number | null;
+    avg_quantity: number | null;
+    total_transactions_analyzed: number | null;
+    peak_hours: number[];
+  };
+  risk_factors: string[];
+  cashier_context: string | null;
+}
+
+export async function fetchAlertExplanation(alertId: string): Promise<AlertExplanation> {
+  const { data } = await api.get<AlertExplanation>(`/api/probe/alerts/${alertId}/explain`);
+  return data;
+}
+
 export async function fetchForecastBacktest(): Promise<BacktestResponse> {
   const { data } = await api.get<BacktestResponse>("/api/probe/forecast/backtest");
   return data;

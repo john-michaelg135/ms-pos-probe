@@ -4,9 +4,9 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Info, TrendingUp, ShieldCheck, Zap, Package } from "lucide-react";
-import { fetchForecast, fetchForecastInsights, ForecastItem, ForecastInsightsResponse } from "@/lib/api";
+import { fetchForecast, fetchForecastInsights } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
-import { VARIATION_ORDER, getVariationSortIndex } from "@/lib/variation-order";
+import { getVariationSortIndex } from "@/lib/variation-order";
 
 const FORECAST_WINDOWS = [
   { label: "7 Days", value: 7 },
@@ -98,22 +98,6 @@ export default function ForecastPage() {
     );
   }, [data]);
 
-  // Summary table
-  const summaryData = useMemo(() => {
-    if (!filteredData) return [];
-    const map = new Map<string, { total: number; upper: number; lower: number; count: number; variation_id: number; product_name: string; variation_name: string }>();
-    filteredData.forEach((item) => {
-      const key = `${item.variation_id}`;
-      const existing = map.get(key) || { total: 0, upper: 0, lower: 0, count: 0, variation_id: item.variation_id, product_name: item.product_name, variation_name: item.variation_name };
-      existing.total += item.predicted_quantity;
-      existing.upper += item.upper_bound;
-      existing.lower += item.lower_bound;
-      existing.count += 1;
-      map.set(key, existing);
-    });
-    return [...map.values()].sort((a, b) => getVariationSortIndex(undefined, a.variation_id) - getVariationSortIndex(undefined, b.variation_id));
-  }, [filteredData]);
-
   return (
     <div className="space-y-6 page-enter">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in">
@@ -124,14 +108,14 @@ export default function ForecastPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 items-end">
           {/* Product filter */}
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 w-[280px]">
             {PRODUCT_FILTERS.map((f) => (
               <button
                 key={f.value}
                 onClick={() => setProductFilter(f.value)}
-                className={`px-3 py-2 rounded-lg text-[11px] font-medium transition-all btn-press ${
+                className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium transition-all btn-press ${
                   productFilter === f.value
                     ? "bg-brand-500 text-white shadow-md"
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
@@ -143,12 +127,12 @@ export default function ForecastPage() {
           </div>
 
           {/* Forecast window */}
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 w-[280px]">
             {FORECAST_WINDOWS.map((w) => (
               <button
                 key={w.value}
                 onClick={() => setDays(w.value)}
-                className={`px-3 py-2 rounded-lg text-[11px] font-medium transition-all btn-press ${
+                className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium transition-all btn-press ${
                   days === w.value
                     ? "bg-brand-500 text-white shadow-md"
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
@@ -294,52 +278,6 @@ export default function ForecastPage() {
           </div>
         </div>
       )}
-
-      {/* Restocking Summary Table */}
-      <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-3">
-        <h2 className="text-[14px] font-semibold text-gray-900 dark:text-gray-50 mb-4">
-          Recommended Restocking ({days}-Day Total) — {productFilter === "all" ? "All Products" : productFilter}
-        </h2>
-
-        {summaryData.length > 0 ? (
-          <div className="overflow-x-auto overflow-y-visible">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-2 text-gray-500 font-medium">Product</th>
-                  <th className="text-left py-3 px-2 text-gray-500 font-medium">Variation</th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Predicted <HeaderTooltip text="The total predicted demand quantity for this product variation over the selected forecast window. This is the model's best estimate of how many units customers will purchase." /></span>
-                  </th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Min Restock <HeaderTooltip text="The minimum recommended restock quantity (lower bound). Represents the minimum expected demand. Stocking at this level minimizes overstock risk but may lead to stockouts on busy days." /></span>
-                  </th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Max Restock <HeaderTooltip text="The maximum recommended restock quantity (upper bound). Represents peak expected demand. Stocking at this level ensures availability during surges but may lead to excess inventory." /></span>
-                  </th>
-                  <th className="text-right py-3 px-2 text-gray-500 font-medium">
-                    <span className="inline-flex items-center gap-1 justify-end">Avg/Day <HeaderTooltip text="Average predicted daily restocking need. Useful for planning daily replenishment schedules and setting reorder points." /></span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaryData.map((row) => (
-                  <tr key={row.variation_id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <td className="py-3 px-2 text-gray-900 dark:text-gray-100">{row.product_name}</td>
-                    <td className="py-3 px-2 text-gray-700 dark:text-gray-300">{row.variation_name}</td>
-                    <td className="py-3 px-2 text-right font-semibold text-brand-500">{row.total}</td>
-                    <td className="py-3 px-2 text-right text-gray-500">{row.lower}</td>
-                    <td className="py-3 px-2 text-right text-gray-500">{row.upper}</td>
-                    <td className="py-3 px-2 text-right text-gray-700 dark:text-gray-300">{Math.round(row.total / row.count)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-[13px] text-gray-500">No data available.</p>
-        )}
-      </div>
     </div>
   );
 }

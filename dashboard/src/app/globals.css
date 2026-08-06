@@ -306,10 +306,32 @@ body:is(.dark *) {
   main {
     padding: 0 !important;
     margin: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Remove layout overflow restrictions during print */
+  .flex.h-screen.overflow-hidden,
+  .flex-1.flex.flex-col.overflow-hidden,
+  .flex-1.overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
   }
 
   .card-hover:hover {
     transform: none;
     box-shadow: none;
+  }
+
+  /* Prevent cards from breaking across pages */
+  .rounded-2xl {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure charts have a fixed height for print */
+  .recharts-responsive-container {
+    min-height: 250px !important;
   }
 }
