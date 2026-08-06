@@ -82,6 +82,7 @@ async def get_alerts(
     risk_level: str | None = Query(default=None),
     cashier_id: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    location_name: str | None = Query(default=None),
     token: dict = Depends(verify_token),
 ):
     """
@@ -109,6 +110,9 @@ async def get_alerts(
     if status and status != "All":
         conditions.append("status = ?")
         params.append(status)
+    if location_name and location_name != "All":
+        conditions.append("location_name = ?")
+        params.append(location_name)
 
     where_clause = ""
     if conditions:

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Wifi, WifiOff, CheckCircle, XCircle, AlertTriangle, X, Brain, TrendingUp, Clock, MapPin, User } from "lucide-react";
-import { fetchAlerts, updateAlertStatus, fetchAlertExplanation, AlertItem, AlertExplanation } from "@/lib/api";
+import { fetchAlerts, updateAlertStatus, fetchAlertExplanation, fetchForecastLocations, AlertItem, AlertExplanation } from "@/lib/api";
 import { formatDateTime } from "@/lib/format-date";
 
 const RISK_COLORS: Record<string, string> = {
@@ -20,6 +20,7 @@ export default function AlertsPage() {
   const [page, setPage] = useState(1);
   const [riskFilter, setRiskFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [locationFilter, setLocationFilter] = useState("All");
   const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -72,12 +73,19 @@ export default function AlertsPage() {
 
   // Alert history query
   const { data: alertsData, isLoading } = useQuery({
-    queryKey: ["alerts", page, riskFilter, statusFilter],
+    queryKey: ["alerts", page, riskFilter, statusFilter, locationFilter],
     queryFn: () => fetchAlerts({
       page,
       risk_level: riskFilter !== "All" ? riskFilter : undefined,
       status: statusFilter !== "All" ? statusFilter : undefined,
+      location_name: locationFilter !== "All" ? locationFilter : undefined,
     }),
+  });
+
+  // Fetch available locations for filter
+  const { data: locations } = useQuery({
+    queryKey: ["forecast", "locations"],
+    queryFn: fetchForecastLocations,
   });
 
   const handleStatusUpdate = useCallback(async (alertId: string, newStatus: string) => {
@@ -93,13 +101,32 @@ export default function AlertsPage() {
     setSelectedAlert(alert);
   };
 
-  return (
-    <div className="space-y-6 page-enter">
-      <div className="animate-fade-in">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Anomaly Alerts</h1>
-        <p className="text-[13px] text-gray-500 mt-1">Real-time fraud detection alerts</p>
-      </div>
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (selectedAlert) {
+      document.body.style.overflow = "hidden";
+      // Also lock the main scrollable container
+      const main = document.querySelector("main");
+      if (main) main.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+      const main = document.querySelector("main");
+      if (main) main.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      const main = document.querySelector("main");
+      if (main) main.style.overflow = "";
+    };
+  }, [selectedAlert]);
 
+  return (
+    <>
+      <div className={`space-y-6 page-enter transition-all duration-200 ${selectedAlert ? "blur-md pointer-events-none select-none" : ""}`}>
+        <div className="animate-fade-in">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Anomaly Alerts</h1>
+          <p className="text-[13px] text-gray-500 mt-1">Real-time fraud detection alerts</p>
+        </div>
       {/* Live Alert Panel */}
       <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-1">
         <div className="flex items-center justify-between mb-4">
@@ -145,6 +172,12 @@ export default function AlertsPage() {
             <option value="New">New</option>
             <option value="Reviewed">Reviewed</option>
             <option value="Dismissed">Dismissed</option>
+          </select>
+          <select value={locationFilter} onChange={(e) => { setLocationFilter(e.target.value); setPage(1); }} className="px-3 py-2 text-[12px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            <option value="All">All Locations</option>
+            {locations?.map((loc, i) => (
+              <option key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</option>
+            ))}
           </select>
         </div>
 
@@ -204,6 +237,7 @@ export default function AlertsPage() {
           </div>
         )}
       </div>
+      </div>
 
       {/* Review Modal */}
       {selectedAlert && (
@@ -214,7 +248,7 @@ export default function AlertsPage() {
           onDismiss={() => handleStatusUpdate(selectedAlert.alert_id, "Dismissed")}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -236,12 +270,12 @@ function AlertReviewModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+      {/* Backdrop — click to close */}
+      <div className="fixed inset-0 bg-transparent" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-[#1a2231] rounded-2xl border border-gray-200 dark:border-[#2d3748] shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto animate-scale-in">
+      <div className="relative bg-white dark:bg-[#1a2231] rounded-2xl border border-gray-200 dark:border-[#2d3748] shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto animate-scale-in my-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-[#1a2231] border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <div className="flex items-center gap-3">

@@ -322,6 +322,7 @@ export async function fetchAlerts(params: {
   risk_level?: string;
   status?: string;
   cashier_id?: string;
+  location_name?: string;
   date_from?: string;
   date_to?: string;
 }): Promise<AlertsResponse> {
