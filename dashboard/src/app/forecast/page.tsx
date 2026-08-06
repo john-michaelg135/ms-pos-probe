@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Info, TrendingUp, ShieldCheck, Zap, Package } from "lucide-react";
-import { fetchForecast, fetchForecastInsights } from "@/lib/api";
+import { fetchForecast, fetchForecastInsights, fetchForecastLocations } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 import { getVariationSortIndex } from "@/lib/variation-order";
 
@@ -29,10 +29,17 @@ export default function ForecastPage() {
   const [days, setDays] = useState(7);
   const [productFilter, setProductFilter] = useState("all");
   const [selectedVariationId, setSelectedVariationId] = useState<number | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["forecast", days],
-    queryFn: () => fetchForecast(days),
+    queryKey: ["forecast", days, selectedLocationId],
+    queryFn: () => fetchForecast(days, undefined, selectedLocationId ?? undefined),
+  });
+
+  // Fetch available locations
+  const { data: locations } = useQuery({
+    queryKey: ["forecast", "locations"],
+    queryFn: fetchForecastLocations,
   });
 
   // Fetch AI insights for the explanation cards
@@ -109,6 +116,18 @@ export default function ForecastPage() {
         </div>
 
         <div className="flex flex-col gap-2 items-end">
+          {/* Location filter */}
+          <select
+            value={selectedLocationId ?? "all"}
+            onChange={(e) => setSelectedLocationId(e.target.value === "all" ? null : e.target.value)}
+            className="w-[280px] px-3 py-2 rounded-xl text-[11px] font-medium border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none"
+          >
+            <option value="all">All Locations</option>
+            {locations?.map((loc, i) => (
+              <option key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</option>
+            ))}
+          </select>
+
           {/* Product filter */}
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 w-[280px]">
             {PRODUCT_FILTERS.map((f) => (

@@ -135,11 +135,25 @@ export interface ForecastItem {
 
 export async function fetchForecast(
   days: number = 7,
-  variationId?: number
+  variationId?: number,
+  locationName?: string
 ): Promise<ForecastItem[]> {
   const params: Record<string, string | number> = { days };
   if (variationId) params.variation_id = variationId;
+  if (locationName) params.location_name = locationName;
   const { data } = await api.get<ForecastItem[]>("/api/probe/forecast", { params });
+  return data;
+}
+
+// ── Forecast Locations ──
+
+export interface ForecastLocation {
+  location_name: string;
+  transaction_count: number;
+}
+
+export async function fetchForecastLocations(): Promise<ForecastLocation[]> {
+  const { data } = await api.get<ForecastLocation[]>("/api/probe/forecast/locations");
   return data;
 }
 

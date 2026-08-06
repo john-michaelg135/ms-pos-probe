@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Printer, Calendar } from "lucide-react";
-import { fetchForecast } from "@/lib/api";
+import { Printer, Calendar, MapPin } from "lucide-react";
+import { fetchForecast, fetchForecastLocations } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { getVariationSortIndex } from "@/lib/variation-order";
 
@@ -20,10 +20,16 @@ export default function QuotaPage() {
     return tomorrow.toISOString().split("T")[0];
   });
   const [productFilter, setProductFilter] = useState("all");
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["forecast", "quota", 30],
-    queryFn: () => fetchForecast(30),
+    queryKey: ["forecast", "quota", 30, selectedLocationId],
+    queryFn: () => fetchForecast(30, undefined, selectedLocationId ?? undefined),
+  });
+
+  const { data: locations } = useQuery({
+    queryKey: ["forecast", "locations"],
+    queryFn: fetchForecastLocations,
   });
 
   // Filter data for the selected date and product
@@ -58,7 +64,22 @@ export default function QuotaPage() {
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Restocking Quota</h1>
           <p className="text-[13px] text-gray-500 mt-1">AI-recommended daily restocking quantities</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Location filter */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <MapPin size={14} className="text-gray-400" />
+            <select
+              value={selectedLocationId ?? "all"}
+              onChange={(e) => setSelectedLocationId(e.target.value === "all" ? null : e.target.value)}
+              className="text-[12px] bg-transparent text-gray-900 dark:text-gray-100 outline-none"
+            >
+              <option value="all">All Locations</option>
+              {locations?.map((loc, i) => (
+                <option key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Product filter */}
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
             {PRODUCT_FILTERS.map((f) => (

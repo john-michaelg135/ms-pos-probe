@@ -160,10 +160,13 @@ def _generate_forecast(model, days: int) -> list[dict]:
 async def get_forecast(
     variation_id: int | None = Query(default=None),
     days: int = Query(default=7, ge=1, le=30),
+    location_id: int | None = Query(default=None),
+    location_name: str | None = Query(default=None),
     token: dict = Depends(verify_token),
 ):
     """
     Returns predicted daily demand for product variations.
+    Optionally filtered by location_name (uses proportional split from historical data).
     Cached in Redis with 6-hour TTL.
     """
     settings = get_settings()
@@ -224,7 +227,96 @@ async def get_forecast(
 
         all_forecasts.extend(forecast_data)
 
+    # Apply location-based proportional split if location is specified
+    if location_name and all_forecasts:
+        all_forecasts = _apply_location_split(all_forecasts, location_name)
+    elif location_id and all_forecasts:
+        # Legacy support: resolve location_id to name first
+        conn = get_duckdb()
+        try:
+            loc_row = conn.execute(
+                "SELECT location_name FROM sales_transactions WHERE location_id = ? LIMIT 1",
+                [location_id]
+            ).fetchone()
+            if loc_row:
+                all_forecasts = _apply_location_split(all_forecasts, loc_row[0])
+        except Exception:
+            pass
+
     return all_forecasts
+
+
+def _apply_location_split(forecasts: list[dict], loc_name: str) -> list[dict]:
+    """
+    Apply proportional location split to forecast data.
+    Uses historical sales ratios per variation per location to distribute the forecast.
+    """
+    conn = get_duckdb()
+
+    # Get proportional share per variation for this location
+    try:
+        ratios = conn.execute("""
+            SELECT
+                variation_id,
+                SUM(quantity) AS loc_qty
+            FROM sales_transactions
+            WHERE location_name = ? AND is_refund = FALSE
+            GROUP BY variation_id
+        """, [loc_name]).fetchall()
+        loc_qty_map = {int(r[0]): float(r[1]) for r in ratios}
+    except Exception:
+        loc_qty_map = {}
+
+    # Get total quantity per variation (all locations)
+    try:
+        totals = conn.execute("""
+            SELECT variation_id, SUM(quantity) AS total_qty
+            FROM sales_transactions
+            WHERE is_refund = FALSE
+            GROUP BY variation_id
+        """).fetchall()
+        total_qty_map = {int(r[0]): float(r[1]) for r in totals}
+    except Exception:
+        total_qty_map = {}
+
+    # Apply ratio to each forecast item
+    result = []
+    for item in forecasts:
+        var_id = item.get("variation_id")
+        loc_qty = loc_qty_map.get(var_id, 0)
+        total_qty = total_qty_map.get(var_id, 1)
+
+        # Calculate location's share (default to equal split if no data)
+        ratio = loc_qty / total_qty if total_qty > 0 else 0.5
+
+        adjusted = {
+            **item,
+            "predicted_quantity": max(0, round(item["predicted_quantity"] * ratio)),
+            "lower_bound": max(0, round(item["lower_bound"] * ratio)),
+            "upper_bound": max(0, round(item["upper_bound"] * ratio)),
+            "location_name": loc_name,
+            "location_ratio": round(ratio, 3),
+        }
+        result.append(adjusted)
+
+    return result
+
+
+@router.get("/locations")
+async def get_forecast_locations(token: dict = Depends(verify_token)):
+    """Returns available locations for location-based forecast filtering."""
+    conn = get_duckdb()
+    try:
+        rows = conn.execute("""
+            SELECT location_name, COUNT(*) as txn_count
+            FROM sales_transactions
+            WHERE location_name IS NOT NULL AND location_name != ''
+            GROUP BY location_name
+            ORDER BY location_name
+        """).fetchall()
+        return [{"location_name": r[0], "transaction_count": int(r[1])} for r in rows]
+    except Exception:
+        return []
 
 
 @router.get("/insights")
