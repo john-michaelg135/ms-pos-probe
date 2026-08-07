@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/lib/providers";
-import { Sidebar } from "@/components/sidebar";
-import { Header } from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthGuard } from "@/components/auth-guard";
+import { AppShell } from "@/components/app-shell";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -24,13 +24,9 @@ export default function RootLayout({
       <body className={`${outfit.className}`}>
         <Providers>
           <ThemeProvider>
-            <div className="flex h-screen overflow-hidden">
-              <Sidebar />
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <Header />
-                <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-950">{children}</main>
-              </div>
-            </div>
+            <AuthGuard>
+              <AppShell>{children}</AppShell>
+            </AuthGuard>
           </ThemeProvider>
         </Providers>
       </body>

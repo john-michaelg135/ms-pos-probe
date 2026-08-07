@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
@@ -10,6 +10,7 @@ import { Printer, FileText, TrendingUp, ShieldAlert, MapPin, Filter } from "luci
 import { fetchForecast, fetchForecastInsights, fetchRevenue, fetchSalesByLocation, fetchSalesByProduct, fetchAlerts, fetchAnomalyMetrics, ForecastInsightsResponse } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 import { getVariationSortIndex } from "@/lib/variation-order";
+import { useAnalyticsStore } from "@/stores/use-analytics-store";
 
 const COLORS = ["#465fff", "#7a5af8", "#0ba5ec", "#f79009", "#12b76a", "#f04438", "#ee46bc"];
 
@@ -27,19 +28,12 @@ const RANGE_OPTIONS = [
 
 export default function ReportsPage() {
   const [category, setCategory] = useState("all");
-  const [rangeDays, setRangeDays] = useState(7);
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
+  const [rangeDays, setRangeDays] = useState(30);
+  const { dateFrom: analyticsDateFrom, dateTo: analyticsDateTo } = useAnalyticsStore();
 
-  // Compute dateTo from dateFrom + rangeDays
-  const dateTo = useMemo(() => {
-    const d = new Date(dateFrom + "T00:00:00");
-    d.setDate(d.getDate() + rangeDays);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }, [dateFrom, rangeDays]);
+  // Use the exact same date range as Sales Analytics
+  const dateFrom = analyticsDateFrom;
+  const dateTo = analyticsDateTo;
 
   // Forecast data
   const forecast = useQuery({
@@ -310,7 +304,7 @@ export default function ReportsPage() {
           )}
 
           {/* Confusion Matrix */}
-          {anomalyMetrics.data && anomalyMetrics.data.metrics && (
+          {anomalyMetrics.data && anomalyMetrics.data.metrics && anomalyMetrics.data.metrics.confusion_matrix && (
             <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 animate-bounce-in stagger-3">
               <h3 className="text-[14px] font-semibold text-gray-900 dark:text-gray-50 mb-2">Confusion Matrix</h3>
               <p className="text-[12px] text-gray-500 mb-4">Classification performance of the Isolation Forest anomaly detection model.</p>

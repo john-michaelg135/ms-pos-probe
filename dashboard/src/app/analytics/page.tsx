@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart, Bar, PieChart, Pie, Cell,
@@ -8,6 +7,7 @@ import {
 } from "recharts";
 import { fetchRevenue, fetchSalesByLocation, fetchSalesByProduct, fetchSalesByChannel } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
+import { useAnalyticsStore } from "@/stores/use-analytics-store";
 
 const TABS = [
   { id: "revenue", label: "Revenue Trends" },
@@ -19,17 +19,7 @@ const TABS = [
 const COLORS = ["#465fff", "#7a5af8", "#0ba5ec", "#f79009", "#12b76a", "#f04438", "#ee46bc"];
 
 export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState("revenue");
-  const [groupBy, setGroupBy] = useState<"day" | "week" | "month">("day");
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
-  const [dateTo, setDateTo] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
+  const { activeTab, setActiveTab, groupBy, setGroupBy, dateFrom, setDateFrom, dateTo, setDateTo } = useAnalyticsStore();
 
   return (
     <div className="space-y-6 page-enter">

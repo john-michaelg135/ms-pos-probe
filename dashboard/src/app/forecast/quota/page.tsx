@@ -17,7 +17,7 @@ export default function QuotaPage() {
   const [selectedDate, setSelectedDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split("T")[0];
+    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
   });
   const [productFilter, setProductFilter] = useState("all");
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);

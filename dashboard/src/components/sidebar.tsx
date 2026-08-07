@@ -17,8 +17,9 @@ import {
 } from "lucide-react";
 import { useSidebarStore } from "@/stores/use-sidebar-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { useAuthStore, canAccessRoute } from "@/stores/use-auth-store";
 
-const probeSubItems = [
+const allProbeSubItems = [
   { href: "/forecast", label: "Demand Forecast" },
   { href: "/forecast/quota", label: "Restocking Quota" },
   { href: "/analytics", label: "Sales Analytics" },
@@ -31,7 +32,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, close } = useSidebarStore();
   const { theme, mounted } = useThemeStore();
+  const { user } = useAuthStore();
   const [probeExpanded, setProbeExpanded] = useState(true);
+
+  // Filter nav items based on role
+  const probeSubItems = allProbeSubItems.filter(
+    (item) => user && canAccessRoute(user.role, item.href)
+  );
 
   const isProbeActive =
     probeSubItems.some((item) => pathname === item.href) || pathname === "/";
@@ -170,6 +177,7 @@ export function Sidebar() {
             </div>
           </div>
         </nav>
+
       </aside>
     </>
   );
