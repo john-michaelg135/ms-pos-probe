@@ -254,7 +254,7 @@ function OwnerDashboard() {
             <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed">
               {alertCount === 0
                 ? "All clear — no suspicious transactions pending review. The AI fraud detection system is actively monitoring all POS and ecommerce transactions."
-                : `${alertCount} transaction${alertCount > 1 ? "s" : ""} flagged by the AI as potentially suspicious. Review them in the Anomaly Alerts section to determine if action is needed.`
+                : `${alertCount} transaction${alertCount > 1 ? "s" : ""} flagged by the AI as potentially suspicious.`
               }
             </p>
           </div>
