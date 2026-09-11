@@ -6,6 +6,16 @@ import { Printer, Calendar, MapPin } from "lucide-react";
 import { fetchForecast, fetchForecastLocations } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { getVariationSortIndex } from "@/lib/variation-order";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
 
 const PRODUCT_FILTERS = [
   { label: "All Products", value: "all" },
@@ -32,20 +42,15 @@ export default function QuotaPage() {
     queryFn: fetchForecastLocations,
   });
 
-  // Filter data for the selected date and product
   const quotaData = useMemo(() => {
     if (!data) return [];
     return data
       .filter((item) => item.date === selectedDate)
       .filter((item) => productFilter === "all" || item.product_name === productFilter)
-      .map((item) => ({
-        ...item,
-        recommended_production: Math.ceil(item.upper_bound),
-      }))
+      .map((item) => ({ ...item, recommended_production: Math.ceil(item.upper_bound) }))
       .sort((a, b) => getVariationSortIndex(undefined, a.variation_id) - getVariationSortIndex(undefined, b.variation_id));
   }, [data, selectedDate, productFilter]);
 
-  // Totals per product
   const productTotals = useMemo(() => {
     if (!data) return { halaya: 0, jam: 0, all: 0 };
     const dayData = data.filter((item) => item.date === selectedDate);
@@ -57,140 +62,132 @@ export default function QuotaPage() {
   const handlePrint = () => window.print();
 
   return (
-    <div className="space-y-6 page-enter">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in print:hidden">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Restocking Quota</h1>
-          <p className="text-[13px] text-gray-500 mt-1">AI-recommended daily restocking quantities</p>
+          <h1 className="text-xl font-semibold text-foreground">Restocking Quota</h1>
+          <p className="text-sm text-muted-foreground mt-1">AI-recommended daily restocking quantities</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {/* Location filter */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-            <MapPin size={14} className="text-gray-400" />
-            <select
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-muted-foreground" />
+            <Select
               value={selectedLocationId ?? "all"}
-              onChange={(e) => setSelectedLocationId(e.target.value === "all" ? null : e.target.value)}
-              className="text-[12px] bg-transparent text-gray-900 dark:text-gray-100 outline-none"
+              onValueChange={(v: string) => setSelectedLocationId(v === "all" ? null : v)}
             >
-              <option value="all">All Locations</option>
-              {locations?.map((loc, i) => (
-                <option key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations?.map((loc, i) => (
+                  <SelectItem key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Product filter */}
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-            {PRODUCT_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setProductFilter(f.value)}
-                className={`px-3 py-2 rounded-lg text-[11px] font-medium transition-all btn-press ${
-                  productFilter === f.value
-                    ? "bg-brand-500 text-white shadow-md"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+          <ToggleGroupPills options={PRODUCT_FILTERS} value={productFilter} onChange={setProductFilter} />
 
-          {/* Date picker */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-            <Calendar size={14} className="text-gray-400" />
-            <input
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <Input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="text-[12px] bg-transparent text-gray-900 dark:text-gray-100 outline-none"
+              className="h-9 w-auto"
             />
           </div>
 
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-500 text-white text-[12px] font-semibold btn-press shadow-[0_2px_8px_rgba(70,95,255,0.25)]"
-          >
-            <Printer size={14} />
+          <Button onClick={handlePrint}>
+            <Printer className="w-4 h-4" />
             Print
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Print header */}
       <div className="hidden print:block print:mb-8">
         <h1 className="text-2xl font-bold text-center">Bren Raphael&apos;s Ube Halaya &amp; Jam Company</h1>
-        <h2 className="text-lg text-center text-gray-600 mt-1">Daily Restocking Quota — {formatDate(selectedDate)}</h2>
-        <p className="text-sm text-center text-gray-400 mt-1">Generated by POS-PROBE AI System</p>
+        <h2 className="text-lg text-center text-muted-foreground mt-1">Daily Restocking Quota — {formatDate(selectedDate)}</h2>
+        <p className="text-sm text-center text-muted-foreground mt-1">Generated by POS-PROBE AI System</p>
       </div>
 
       {/* Product summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-up stagger-1 print:hidden">
-        <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-4 card-hover">
-          <p className="text-[11px] text-gray-500 uppercase font-medium">Ube Halaya Total</p>
-          <p className="text-xl font-bold text-gray-900 dark:text-gray-50 mt-1">{productTotals.halaya} units</p>
-        </div>
-        <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-4 card-hover">
-          <p className="text-[11px] text-gray-500 uppercase font-medium">Ube Jam Total</p>
-          <p className="text-xl font-bold text-gray-900 dark:text-gray-50 mt-1">{productTotals.jam} units</p>
-        </div>
-        <div className="bg-white dark:bg-[#1a2231] border border-brand-200 dark:border-brand-500/30 rounded-2xl p-4 card-hover">
-          <p className="text-[11px] text-brand-500 uppercase font-medium">Combined Total</p>
-          <p className="text-xl font-bold text-brand-500 mt-1">{productTotals.all} units</p>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Ube Halaya Total</p>
+            <p className="text-xl font-bold text-foreground mt-1">{productTotals.halaya} units</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Ube Jam Total</p>
+            <p className="text-xl font-bold text-foreground mt-1">{productTotals.jam} units</p>
+          </CardContent>
+        </Card>
+        <Card className="border-brand-500/40">
+          <CardContent className="pt-6">
+            <p className="text-xs text-brand-500 uppercase font-medium">Combined Total</p>
+            <p className="text-xl font-bold text-brand-500 mt-1">{productTotals.all} units</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quota Table */}
-      <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-2 print:border-none print:shadow-none print:p-0">
-        {isLoading ? (
-          <div className="h-[200px] shimmer rounded-xl flex items-center justify-center">
-            <p className="text-[12px] text-gray-500">Loading quota data...</p>
-          </div>
-        ) : quotaData.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px] print:text-[11px]">
-              <thead>
-                <tr className="border-b-2 border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-3 text-gray-600 dark:text-gray-400 font-semibold">Product Name</th>
-                  <th className="text-left py-3 px-3 text-gray-600 dark:text-gray-400 font-semibold">Variation</th>
-                  <th className="text-right py-3 px-3 text-gray-600 dark:text-gray-400 font-semibold">Predicted Demand</th>
-                  <th className="text-right py-3 px-3 text-gray-600 dark:text-gray-400 font-semibold">Lower Estimate</th>
-                  <th className="text-right py-3 px-3 text-gray-600 dark:text-gray-400 font-semibold">Upper Estimate</th>
-                  <th className="text-right py-3 px-3 text-brand-600 dark:text-brand-400 font-bold">Recommended Restock</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quotaData.map((row) => (
-                  <tr key={row.variation_id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors print:hover:bg-transparent">
-                    <td className="py-3 px-3 text-gray-900 dark:text-gray-100 font-medium">{row.product_name}</td>
-                    <td className="py-3 px-3 text-gray-700 dark:text-gray-300">{row.variation_name}</td>
-                    <td className="py-3 px-3 text-right text-gray-900 dark:text-gray-100">{row.predicted_quantity} units</td>
-                    <td className="py-3 px-3 text-right text-gray-500">{row.lower_bound} units</td>
-                    <td className="py-3 px-3 text-right text-gray-500">{row.upper_bound} units</td>
-                    <td className="py-3 px-3 text-right font-bold text-brand-600 dark:text-brand-400 text-[14px]">{row.recommended_production} units</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-300 dark:border-gray-600">
-                  <td colSpan={5} className="py-3 px-3 font-semibold text-gray-900 dark:text-gray-100">Total Restock</td>
-                  <td className="py-3 px-3 text-right font-bold text-brand-600 dark:text-brand-400 text-[15px]">
-                    {quotaData.reduce((sum, r) => sum + r.recommended_production, 0)} units
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-[13px] text-gray-500">No quota data available for {formatDate(selectedDate)}.</p>
-            <p className="text-[11px] text-gray-400 mt-1">Select a date within the next 30 days.</p>
-          </div>
-        )}
-      </div>
+      <Card className="print:border-none print:shadow-none">
+        <CardContent className="pt-6 print:p-0">
+          {isLoading ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <p className="text-sm text-muted-foreground animate-pulse">Loading quota data…</p>
+            </div>
+          ) : quotaData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Variation</TableHead>
+                    <TableHead className="text-right">Predicted Demand</TableHead>
+                    <TableHead className="text-right">Lower Estimate</TableHead>
+                    <TableHead className="text-right">Upper Estimate</TableHead>
+                    <TableHead className="text-right text-brand-500">Recommended Restock</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {quotaData.map((row) => (
+                    <TableRow key={row.variation_id}>
+                      <TableCell className="font-medium text-foreground">{row.product_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.variation_name}</TableCell>
+                      <TableCell className="text-right">{row.predicted_quantity} units</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{row.lower_bound} units</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{row.upper_bound} units</TableCell>
+                      <TableCell className="text-right font-bold text-brand-500">{row.recommended_production} units</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={5} className="font-semibold text-foreground">Total Restock</TableCell>
+                    <TableCell className="text-right font-bold text-brand-500">
+                      {quotaData.reduce((sum, r) => sum + r.recommended_production, 0)} units
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground">No quota data available for {formatDate(selectedDate)}.</p>
+              <p className="text-xs text-muted-foreground mt-1">Select a date within the next 30 days.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <p className="text-[11px] text-gray-400 print:hidden">
+      <p className="text-xs text-muted-foreground print:hidden">
         💡 The &quot;Recommended Restock&quot; uses the upper bound estimate, rounded up — stocking slightly more than predicted is safer than stockouts.
       </p>
     </div>

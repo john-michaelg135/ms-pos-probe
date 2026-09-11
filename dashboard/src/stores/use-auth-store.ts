@@ -40,6 +40,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     if (typeof window !== "undefined") {
       localStorage.setItem("pos-probe-auth", JSON.stringify(user));
+      // Activate the api.ts request interceptor which reads localStorage["access_token"].
+      // Demo flow: use a namespaced pseudo-token until real gateway auth is wired.
+      localStorage.setItem("access_token", `demo.${user.username}.${user.role}`);
     }
 
     set({ user, isAuthenticated: true });
@@ -49,6 +52,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("pos-probe-auth");
+      localStorage.removeItem("access_token");
     }
     set({ user: null, isAuthenticated: false });
   },
@@ -59,9 +63,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (stored) {
         try {
           const user = JSON.parse(stored) as AuthUser;
+          localStorage.setItem("access_token", `demo.${user.username}.${user.role}`);
           set({ user, isAuthenticated: true });
         } catch {
           localStorage.removeItem("pos-probe-auth");
+          localStorage.removeItem("access_token");
         }
       }
     }

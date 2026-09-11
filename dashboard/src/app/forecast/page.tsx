@@ -3,26 +3,31 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Info, TrendingUp, ShieldCheck, Zap, Package } from "lucide-react";
+import { TrendingUp, ShieldCheck, Zap, Package } from "lucide-react";
 import { fetchForecast, fetchForecastInsights, fetchForecastLocations } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 import { getVariationSortIndex } from "@/lib/variation-order";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
+import {
+  CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
+} from "@/lib/chart-theme";
 
 const FORECAST_WINDOWS = [
-  { label: "7 Days", value: 7 },
-  { label: "14 Days", value: 14 },
-  { label: "30 Days", value: 30 },
+  { label: "7 Days", value: "7" },
+  { label: "14 Days", value: "14" },
+  { label: "30 Days", value: "30" },
 ];
 
 const PRODUCT_FILTERS = [
   { label: "All Products", value: "all" },
   { label: "Ube Halaya", value: "Ube Halaya" },
   { label: "Ube Jam", value: "Ube Jam" },
-];
-
-const COLORS = [
-  "#465fff", "#7a5af8", "#0ba5ec", "#f79009", "#12b76a", "#f04438",
-  "#ee46bc", "#36bffa", "#fb6514", "#32d583", "#fdb022", "#9cb9ff",
 ];
 
 export default function ForecastPage() {
@@ -36,27 +41,23 @@ export default function ForecastPage() {
     queryFn: () => fetchForecast(days, undefined, selectedLocationId ?? undefined),
   });
 
-  // Fetch available locations
   const { data: locations } = useQuery({
     queryKey: ["forecast", "locations"],
     queryFn: fetchForecastLocations,
   });
 
-  // Fetch AI insights for the explanation cards
   const { data: insights } = useQuery({
     queryKey: ["forecast", "insights", days, selectedVariationId],
     queryFn: () => fetchForecastInsights(days, selectedVariationId ?? undefined),
     enabled: !!data && data.length > 0,
   });
 
-  // Filter by product
   const filteredData = useMemo(() => {
     if (!data) return [];
     if (productFilter === "all") return data;
     return data.filter((item) => item.product_name === productFilter);
   }, [data, productFilter]);
 
-  // Group by date for chart
   const chartData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
     const grouped: Record<string, Record<string, number>> = {};
@@ -70,14 +71,11 @@ export default function ForecastPage() {
     return Object.entries(grouped).map(([date, vals]) => ({ date, ...vals }));
   }, [filteredData, productFilter]);
 
-  // Unique variation names for legend
   const variations = useMemo(() => {
     if (!filteredData) return [];
     const set = new Set(
       filteredData.map((d) =>
-        productFilter === "all"
-          ? `${d.product_name} ${d.variation_name}`
-          : d.variation_name
+        productFilter === "all" ? `${d.product_name} ${d.variation_name}` : d.variation_name
       )
     );
     return [...set].sort((a, b) => {
@@ -87,7 +85,6 @@ export default function ForecastPage() {
     });
   }, [filteredData, productFilter]);
 
-  // Get available variations for the insights dropdown
   const availableVariations = useMemo(() => {
     if (!data) return [];
     const map = new Map<number, { variation_id: number; product_name: string; variation_name: string }>();
@@ -106,245 +103,189 @@ export default function ForecastPage() {
   }, [data]);
 
   return (
-    <div className="space-y-6 page-enter">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in">
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Demand Forecast</h1>
-          <p className="text-[13px] text-gray-500 mt-1">
+          <h1 className="text-xl font-semibold text-foreground">Demand Forecast</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Predicted daily demand for each Ube product variation
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 items-end">
-          {/* Location filter */}
-          <select
-            value={selectedLocationId ?? "all"}
-            onChange={(e) => setSelectedLocationId(e.target.value === "all" ? null : e.target.value)}
-            className="w-[280px] px-3 py-2 rounded-xl text-[11px] font-medium border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none"
-          >
-            <option value="all">All Locations</option>
-            {locations?.map((loc, i) => (
-              <option key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</option>
-            ))}
-          </select>
-
-          {/* Product filter */}
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 w-[280px]">
-            {PRODUCT_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setProductFilter(f.value)}
-                className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium transition-all btn-press ${
-                  productFilter === f.value
-                    ? "bg-brand-500 text-white shadow-md"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+        <div className="flex flex-col gap-2 lg:items-end">
+          <div className="w-[280px]">
+            <Select
+              value={selectedLocationId ?? "all"}
+              onValueChange={(v: string) => setSelectedLocationId(v === "all" ? null : v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations?.map((loc, i) => (
+                  <SelectItem key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Forecast window */}
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 w-[280px]">
-            {FORECAST_WINDOWS.map((w) => (
-              <button
-                key={w.value}
-                onClick={() => setDays(w.value)}
-                className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-medium transition-all btn-press ${
-                  days === w.value
-                    ? "bg-brand-500 text-white shadow-md"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                }`}
-              >
-                {w.label}
-              </button>
-            ))}
-          </div>
+          <ToggleGroupPills
+            className="w-[280px]"
+            options={PRODUCT_FILTERS}
+            value={productFilter}
+            onChange={setProductFilter}
+          />
+          <ToggleGroupPills
+            className="w-[280px]"
+            options={FORECAST_WINDOWS}
+            value={String(days)}
+            onChange={(v) => setDays(Number(v))}
+          />
         </div>
       </div>
 
       {/* Chart */}
-      <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-1">
-        <h2 className="text-[14px] font-semibold text-gray-900 dark:text-gray-50 mb-4">
-          Predicted Demand (Next {days} Days)
-        </h2>
-
-        {isLoading ? (
-          <div className="h-[350px] flex items-center justify-center shimmer rounded-xl">
-            <p className="text-[13px] text-gray-500">Loading forecast data...</p>
-          </div>
-        ) : error ? (
-          <div className="h-[350px] flex items-center justify-center">
-            <p className="text-[13px] text-error-500">Failed to load forecast. Is the AI service running?</p>
-          </div>
-        ) : chartData.length > 0 ? (
-          <>
-            <ResponsiveContainer width="100%" height={400}>
-              <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(102,112,133,0.15)" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#98a2b3" }} tickFormatter={formatDateShort} />
-                <YAxis tick={{ fontSize: 11, fill: "#98a2b3" }} />
-                <Tooltip
-                  contentStyle={{
-                    background: "rgba(26,34,49,0.95)",
-                    border: "1px solid #2d3748",
-                    borderRadius: 12,
-                    fontSize: 12,
-                    maxHeight: 350,
-                    overflow: "auto",
-                  }}
-                  labelStyle={{ color: "#f9fafb", fontWeight: 600, marginBottom: 4 }}
-                  labelFormatter={(label) => formatDate(String(label))}
-                />
-                <Legend content={() => null} />
-                {variations.map((name, i) => (
-                  <Area
-                    key={name}
-                    type="monotone"
-                    dataKey={name}
-                    stroke={COLORS[i % COLORS.length]}
-                    fill={COLORS[i % COLORS.length]}
-                    fillOpacity={0.06}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-
-            {/* Custom legend below chart */}
-            <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 px-2">
-              {variations.map((name, i) => (
-                <div key={name} className="flex items-center gap-1.5">
-                  <div className="w-3 h-[3px] rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
-                  <span className="text-[10px] text-gray-600 dark:text-gray-400">{name}</span>
-                </div>
-              ))}
+      <Card>
+        <CardHeader>
+          <CardTitle>Predicted Demand (Next {days} Days)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="h-[350px] flex items-center justify-center">
+              <p className="text-sm text-muted-foreground animate-pulse">Loading forecast data…</p>
             </div>
-          </>
-        ) : (
-          <div className="h-[350px] flex items-center justify-center">
-            <p className="text-[13px] text-gray-500">No forecast data available. Train the model first.</p>
-          </div>
-        )}
-      </div>
+          ) : error ? (
+            <div className="h-[350px] flex items-center justify-center">
+              <p className="text-sm text-destructive">Failed to load forecast. Is the AI service running?</p>
+            </div>
+          ) : chartData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={400}>
+                <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+                  <XAxis dataKey="date" tick={AXIS_TICK} tickFormatter={formatDateShort} />
+                  <YAxis tick={AXIS_TICK} />
+                  <Tooltip
+                    contentStyle={{ ...tooltipContentStyle, maxHeight: 350, overflow: "auto" }}
+                    labelStyle={{ ...tooltipLabelStyle, fontWeight: 600 }}
+                    labelFormatter={(label) => formatDate(String(label))}
+                  />
+                  <Legend content={() => null} />
+                  {variations.map((name, i) => (
+                    <Area
+                      key={name}
+                      type="monotone"
+                      dataKey={name}
+                      stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                      fill={CHART_COLORS[i % CHART_COLORS.length]}
+                      fillOpacity={0.06}
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  ))}
+                </AreaChart>
+              </ResponsiveContainer>
+
+              <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 px-2">
+                {variations.map((name, i) => (
+                  <div key={name} className="flex items-center gap-1.5">
+                    <div className="w-3 h-[3px] rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="text-[10px] text-muted-foreground">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="h-[350px] flex items-center justify-center">
+              <p className="text-sm text-muted-foreground">No forecast data available. Train the model first.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* AI Forecast Explanations & Key Drivers */}
       {data && data.length > 0 && (
-        <div className="bg-white dark:bg-[#1a2231] border border-gray-200 dark:border-[#2d3748] rounded-2xl p-6 card-hover animate-bounce-in stagger-2">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-brand-500/10 flex items-center justify-center">
-                <TrendingUp size={18} className="text-brand-500" />
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-brand-500/10 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4 text-brand-500" />
+                </div>
+                <div>
+                  <CardTitle>AI Forecast Explanations &amp; Key Drivers</CardTitle>
+                  <CardDescription>
+                    Data-backed demand insights derived from historical POS transaction patterns
+                  </CardDescription>
+                </div>
+                <Badge variant="purple">{insights?.engine || "Statsmodels"} Additive ML</Badge>
               </div>
-              <div>
-                <h2 className="text-[15px] font-semibold text-gray-900 dark:text-gray-50">AI Forecast Explanations & Key Drivers</h2>
-                <p className="text-[11px] text-gray-500">Data-backed demand insights derived from historical POS transaction patterns</p>
+
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Analyze SKU:</Label>
+                <Select
+                  value={selectedVariationId != null ? String(selectedVariationId) : "all"}
+                  onValueChange={(v: string) => setSelectedVariationId(v === "all" ? null : Number(v))}
+                >
+                  <SelectTrigger className="w-[240px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Variations (System Total)</SelectItem>
+                    {availableVariations.map((v) => (
+                      <SelectItem key={v.variation_id} value={String(v.variation_id)}>
+                        {v.product_name} {v.variation_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-semibold">
-                {insights?.engine || "Statsmodels"} Additive ML
-              </span>
             </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-gray-500">Analyze SKU:</span>
-              <select
-                value={selectedVariationId ?? "all"}
-                onChange={(e) => setSelectedVariationId(e.target.value === "all" ? null : Number(e.target.value))}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[12px] text-gray-900 dark:text-gray-100 outline-none"
-              >
-                <option value="all">All Variations (System Total)</option>
-                {availableVariations.map((v) => (
-                  <option key={v.variation_id} value={v.variation_id}>
-                    {v.product_name} {v.variation_name}
-                  </option>
-                ))}
-              </select>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InsightCard
+                icon={<TrendingUp className="w-4 h-4 text-brand-500" />}
+                title="Model Baseline & Confidence"
+                content={insights?.model_baseline || "Loading model confidence data…"}
+              />
+              <InsightCard
+                icon={<Zap className="w-4 h-4 text-purple-500" />}
+                title="Primary Forecast Demand Drivers"
+                content={insights?.demand_drivers || "Loading demand driver analysis…"}
+              />
+              <InsightCard
+                icon={<Package className="w-4 h-4 text-success" />}
+                title="SKU Velocity & Stockout Risk"
+                content={insights?.stockout_risk || "Loading stockout risk assessment…"}
+                badge={insights?.velocity_class}
+              />
+              <InsightCard
+                icon={<ShieldCheck className="w-4 h-4 text-info" />}
+                title="Safety Stock & Buffer Bounds"
+                content={insights?.safety_stock || "Loading safety stock recommendations…"}
+              />
             </div>
-          </div>
-
-          {/* Insight Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Model Baseline & Confidence */}
-            <InsightCard
-              icon={<TrendingUp size={16} className="text-brand-500" />}
-              title="Model Baseline & Confidence"
-              content={insights?.model_baseline || "Loading model confidence data..."}
-            />
-
-            {/* Primary Forecast Demand Drivers */}
-            <InsightCard
-              icon={<Zap size={16} className="text-purple-500" />}
-              title="Primary Forecast Demand Drivers"
-              content={insights?.demand_drivers || "Loading demand driver analysis..."}
-            />
-
-            {/* SKU Velocity & Stockout Risk */}
-            <InsightCard
-              icon={<Package size={16} className="text-green-500" />}
-              title="SKU Velocity & Stockout Risk"
-              content={insights?.stockout_risk || "Loading stockout risk assessment..."}
-              badge={insights?.velocity_class}
-            />
-
-            {/* Safety Stock & Buffer Bounds */}
-            <InsightCard
-              icon={<ShieldCheck size={16} className="text-blue-500" />}
-              title="Safety Stock & Buffer Bounds"
-              content={insights?.safety_stock || "Loading safety stock recommendations..."}
-            />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
 }
 
-// ── Insight Card Component ──
 function InsightCard({ icon, title, content, badge }: { icon: React.ReactNode; title: string; content: string; badge?: string }) {
+  const badgeVariant =
+    badge === "Class A Fast-Mover" ? "success" :
+    badge === "Class B Moderate-Mover" ? "info" : "secondary";
   return (
-    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+    <div className="bg-muted/40 rounded-xl p-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <h3 className="text-[12px] font-semibold text-gray-900 dark:text-gray-50">{title}</h3>
-        {badge && (
-          <span className={`ml-auto px-2 py-0.5 rounded-md text-[10px] font-semibold ${
-            badge === "Class A Fast-Mover" ? "bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400" :
-            badge === "Class B Moderate-Mover" ? "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400" :
-            "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-          }`}>
-            {badge}
-          </span>
-        )}
+        <h3 className="text-xs font-semibold text-foreground">{title}</h3>
+        {badge && <Badge variant={badgeVariant} className="ml-auto">{badge}</Badge>}
       </div>
-      <p className="text-[12px] text-gray-600 dark:text-gray-400 leading-relaxed">{content}</p>
-    </div>
-  );
-}
-
-function HeaderTooltip({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
-
-  return (
-    <div className="relative inline-block">
-      <button
-        type="button"
-        className="text-gray-400 hover:text-brand-500 transition-colors cursor-help"
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        onFocus={() => setShow(true)}
-        onBlur={() => setShow(false)}
-        aria-label="More info"
-      >
-        <Info size={12} />
-      </button>
-      {show && (
-        <div className="absolute z-50 top-full right-0 mt-2 w-56 p-3 bg-gray-900 dark:bg-gray-800 text-white text-[11px] leading-relaxed rounded-lg shadow-lg pointer-events-none text-left font-normal normal-case">
-          {text}
-          <div className="absolute bottom-full right-2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-gray-900 dark:border-b-gray-800"></div>
-        </div>
-      )}
+      <p className="text-xs text-muted-foreground leading-relaxed">{content}</p>
     </div>
   );
 }

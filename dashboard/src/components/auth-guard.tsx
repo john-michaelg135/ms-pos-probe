@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore, canAccessRoute } from "@/stores/use-auth-store";
 
+const AUTH_ROUTES = ["/login", "/signin"];
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -13,6 +15,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Hydrate auth state from localStorage on mount
   useEffect(() => {
     hydrate();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration gate to avoid SSR flash
     setHydrated(true);
   }, [hydrate]);
 
@@ -20,20 +23,27 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
 
-    // Not authenticated and not on login page → redirect to login
-    if (!isAuthenticated && pathname !== "/login") {
+    const isAuthRoute = AUTH_ROUTES.includes(pathname);
+
+    // Not authenticated and not on an auth page → redirect to login
+    if (!isAuthenticated && !isAuthRoute) {
       router.replace("/login");
       return;
     }
 
-    // Authenticated but on login page → redirect to home
-    if (isAuthenticated && pathname === "/login") {
+    // Authenticated but on an auth page → redirect to home
+    if (isAuthenticated && isAuthRoute) {
       router.replace("/");
       return;
     }
 
     // Authenticated but no access to this route → redirect to home
-    if (isAuthenticated && user && !canAccessRoute(user.role, pathname) && pathname !== "/login") {
+    if (
+      isAuthenticated &&
+      user &&
+      !canAccessRoute(user.role, pathname) &&
+      !isAuthRoute
+    ) {
       router.replace("/");
     }
   }, [hydrated, isAuthenticated, user, pathname, router]);
@@ -41,14 +51,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Show nothing while hydrating to avoid flash
   if (!hydrated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="text-[13px] text-gray-500">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-[13px] text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
-  // Login page — render without layout
-  if (pathname === "/login") {
+  // Auth pages — render without layout
+  if (AUTH_ROUTES.includes(pathname)) {
     return <>{children}</>;
   }
 
