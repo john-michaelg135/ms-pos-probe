@@ -1,0 +1,195 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Printer, Calendar, MapPin } from "lucide-react";
+import { fetchForecast, fetchForecastLocations } from "@/lib/api";
+import { formatDate } from "@/lib/format-date";
+import { getVariationSortIndex } from "@/lib/variation-order";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
+
+const PRODUCT_FILTERS = [
+  { label: "All Products", value: "all" },
+  { label: "Ube Halaya", value: "Ube Halaya" },
+  { label: "Ube Jam", value: "Ube Jam" },
+];
+
+export default function QuotaPage() {
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  });
+  const [productFilter, setProductFilter] = useState("all");
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["forecast", "quota", 30, selectedLocationId],
+    queryFn: () => fetchForecast(30, undefined, selectedLocationId ?? undefined),
+  });
+
+  const { data: locations } = useQuery({
+    queryKey: ["forecast", "locations"],
+    queryFn: fetchForecastLocations,
+  });
+
+  const quotaData = useMemo(() => {
+    if (!data) return [];
+    return data
+      .filter((item) => item.date === selectedDate)
+      .filter((item) => productFilter === "all" || item.product_name === productFilter)
+      .map((item) => ({ ...item, recommended_production: Math.ceil(item.upper_bound) }))
+      .sort((a, b) => getVariationSortIndex(undefined, a.variation_id) - getVariationSortIndex(undefined, b.variation_id));
+  }, [data, selectedDate, productFilter]);
+
+  const productTotals = useMemo(() => {
+    if (!data) return { halaya: 0, jam: 0, all: 0 };
+    const dayData = data.filter((item) => item.date === selectedDate);
+    const halaya = dayData.filter((d) => d.product_name === "Ube Halaya").reduce((sum, d) => sum + Math.ceil(d.upper_bound), 0);
+    const jam = dayData.filter((d) => d.product_name === "Ube Jam").reduce((sum, d) => sum + Math.ceil(d.upper_bound), 0);
+    return { halaya, jam, all: halaya + jam };
+  }, [data, selectedDate]);
+
+  const handlePrint = () => window.print();
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 print:hidden">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Restocking Quota</h1>
+          <p className="text-sm text-muted-foreground mt-1">AI-recommended daily restocking quantities</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-muted-foreground" />
+            <Select
+              value={selectedLocationId ?? "all"}
+              onValueChange={(v: string) => setSelectedLocationId(v === "all" ? null : v)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations?.map((loc, i) => (
+                  <SelectItem key={`loc-${i}`} value={loc.location_name}>{loc.location_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <ToggleGroupPills options={PRODUCT_FILTERS} value={productFilter} onChange={setProductFilter} />
+
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="h-9 w-auto"
+            />
+          </div>
+
+          <Button onClick={handlePrint}>
+            <Printer className="w-4 h-4" />
+            Print
+          </Button>
+        </div>
+      </div>
+
+      {/* Print header */}
+      <div className="hidden print:block print:mb-8">
+        <h1 className="text-2xl font-bold text-center">Bren Raphael&apos;s Ube Halaya &amp; Jam Company</h1>
+        <h2 className="text-lg text-center text-muted-foreground mt-1">Daily Restocking Quota — {formatDate(selectedDate)}</h2>
+        <p className="text-sm text-center text-muted-foreground mt-1">Generated by POS-PROBE AI System</p>
+      </div>
+
+      {/* Product summary cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Ube Halaya Total</p>
+            <p className="text-xl font-bold text-foreground mt-1">{productTotals.halaya} units</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-xs text-muted-foreground uppercase font-medium">Ube Jam Total</p>
+            <p className="text-xl font-bold text-foreground mt-1">{productTotals.jam} units</p>
+          </CardContent>
+        </Card>
+        <Card className="border-brand-500/40">
+          <CardContent className="pt-6">
+            <p className="text-xs text-brand-500 uppercase font-medium">Combined Total</p>
+            <p className="text-xl font-bold text-brand-500 mt-1">{productTotals.all} units</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quota Table */}
+      <Card className="print:border-none print:shadow-none">
+        <CardContent className="pt-6 print:p-0">
+          {isLoading ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <p className="text-sm text-muted-foreground animate-pulse">Loading quota data…</p>
+            </div>
+          ) : quotaData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Variation</TableHead>
+                    <TableHead className="text-right">Predicted Demand</TableHead>
+                    <TableHead className="text-right">Lower Estimate</TableHead>
+                    <TableHead className="text-right">Upper Estimate</TableHead>
+                    <TableHead className="text-right text-brand-500">Recommended Restock</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {quotaData.map((row) => (
+                    <TableRow key={row.variation_id}>
+                      <TableCell className="font-medium text-foreground">{row.product_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.variation_name}</TableCell>
+                      <TableCell className="text-right">{row.predicted_quantity} units</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{row.lower_bound} units</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{row.upper_bound} units</TableCell>
+                      <TableCell className="text-right font-bold text-brand-500">{row.recommended_production} units</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={5} className="font-semibold text-foreground">Total Restock</TableCell>
+                    <TableCell className="text-right font-bold text-brand-500">
+                      {quotaData.reduce((sum, r) => sum + r.recommended_production, 0)} units
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground">No quota data available for {formatDate(selectedDate)}.</p>
+              <p className="text-xs text-muted-foreground mt-1">Select a date within the next 30 days.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground print:hidden">
+        💡 The &quot;Recommended Restock&quot; uses the upper bound estimate, rounded up — stocking slightly more than predicted is safer than stockouts.
+      </p>
+    </div>
+  );
+}
