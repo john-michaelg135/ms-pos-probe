@@ -25,14 +25,28 @@ builder.Services.AddReverseProxy()
 var allowedOrigins = (Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "http://localhost:3003,http://localhost:3004,http://localhost:3006")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+// If ALLOWED_ORIGINS contains "*", allow any origin (demo-friendly).
+// The dashboard authenticates with a Bearer token (not cookies), so we do NOT
+// need AllowCredentials — and requiring it breaks CORS when the origin isn't an
+// exact byte-for-byte match. Only enable credentials for explicit named origins.
+var allowAnyOrigin = allowedOrigins.Length == 0 || allowedOrigins.Contains("*");
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontends", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        if (allowAnyOrigin)
+        {
+            policy.SetIsOriginAllowed(_ => true)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
     });
 });
 
@@ -70,10 +84,12 @@ app.MapGet("/health", () => Results.Ok(new
     service = "pos-probe-gateway",
     status = "healthy",
     timestamp = DateTime.UtcNow
-}));
+})).RequireCors("AllowFrontends");
 
-// YARP reverse proxy
-app.MapReverseProxy();
+// YARP reverse proxy — CORS must be attached to the proxied routes explicitly,
+// otherwise /api/probe/* responses are returned without Access-Control headers
+// and the browser blocks them (preflight passes, real request fails).
+app.MapReverseProxy().RequireCors("AllowFrontends");
 
 // ── Determine port ──
 // Cloud hosts (Render, Koyeb, Railway) inject PORT. Fall back to GATEWAY_PORT, then 5020.
