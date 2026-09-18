@@ -84,12 +84,20 @@ app = FastAPI(
 )
 
 # ── CORS (allow gateway and dashboard) ──
+# ALLOWED_ORIGINS is a comma-separated list. Defaults cover local dev; in
+# production set it to the deployed gateway + dashboard origins.
+import os
+
+_default_origins = "http://localhost:5020,http://localhost:3006"
+_allowed_origins = [
+    o.strip()
+    for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5020",  # POS-PROBE Gateway
-        "http://localhost:3006",  # Dashboard (direct access for dev)
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

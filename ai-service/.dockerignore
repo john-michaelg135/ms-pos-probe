@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+data/*.duckdb
+data/*.duckdb.wal
+data/*_backup_*.duckdb
+models/artifacts/*.pkl
+.git/
+.gitignore
+*.md
