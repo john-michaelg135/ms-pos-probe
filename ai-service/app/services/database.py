@@ -45,11 +45,21 @@ def get_redis() -> redis.Redis:
 
     if _redis_client is None:
         settings = get_settings()
-        _redis_client = redis.Redis(
-            host=settings.redis_host,
-            port=settings.redis_port,
-            decode_responses=True,
-        )
+        if settings.redis_url:
+            # Hosted Redis (e.g. Upstash): full rediss:// URL carries host, port,
+            # password, and TLS. from_url handles all of it.
+            _redis_client = redis.Redis.from_url(
+                settings.redis_url,
+                decode_responses=True,
+            )
+        else:
+            _redis_client = redis.Redis(
+                host=settings.redis_host,
+                port=settings.redis_port,
+                password=settings.redis_password or None,
+                ssl=settings.redis_ssl,
+                decode_responses=True,
+            )
 
     return _redis_client
 

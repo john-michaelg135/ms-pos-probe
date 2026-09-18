@@ -76,7 +76,11 @@ app.MapGet("/health", () => Results.Ok(new
 app.MapReverseProxy();
 
 // ── Determine port ──
-var port = Environment.GetEnvironmentVariable("GATEWAY_PORT") ?? "5020";
-app.Urls.Add($"http://localhost:{port}");
+// Cloud hosts (Render, Koyeb, Railway) inject PORT. Fall back to GATEWAY_PORT, then 5020.
+// Bind to 0.0.0.0 so the service is reachable from outside the container.
+var port = Environment.GetEnvironmentVariable("PORT")
+    ?? Environment.GetEnvironmentVariable("GATEWAY_PORT")
+    ?? "5020";
+app.Urls.Add($"http://0.0.0.0:{port}");
 
 app.Run();

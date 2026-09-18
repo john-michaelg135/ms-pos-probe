@@ -20,10 +20,17 @@ class Settings(BaseSettings):
     postgres_db: str = "pos_db"
     postgres_user: str = "postgres"
     postgres_password: str = "password"
+    # "require" for hosted Postgres (Neon/Supabase); "prefer"/"disable" for local.
+    postgres_sslmode: str = "prefer"
 
     # Redis
+    # For hosted Redis (Upstash) set redis_url to the full rediss:// connection
+    # string — it takes precedence over host/port/password/ssl below.
+    redis_url: str = ""
     redis_host: str = "localhost"
     redis_port: int = 6379
+    redis_password: str = ""
+    redis_ssl: bool = False
     redis_ttl_hours: int = 6
 
     # DuckDB
@@ -53,7 +60,8 @@ class Settings(BaseSettings):
             f"port={self.postgres_port} "
             f"dbname={self.postgres_db} "
             f"user={self.postgres_user} "
-            f"password={self.postgres_password}"
+            f"password={self.postgres_password} "
+            f"sslmode={self.postgres_sslmode}"
         )
 
     class Config:

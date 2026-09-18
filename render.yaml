@@ -1,0 +1,89 @@
+# Render Blueprint for ms-pos-probe (gateway + ai-service)
+# The dashboard (Next.js) deploys to Vercel, not here.
+# Values marked `sync: false` are NOT in Git — set them in the Render dashboard.
+services:
+  # ── POS-PROBE Gateway (.NET 10 YARP) ──
+  - type: web
+    name: pos-probe-gateway
+    runtime: docker
+    plan: free
+    dockerfilePath: ./gateway/Dockerfile
+    dockerContext: ./gateway
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Legacy gateway owned by another team. Set when known; catch-all proxies here.
+      - key: LEGACY_GATEWAY_URL
+        sync: false
+      # Internal URL of the ai-service below (Render gives each service a URL).
+      - key: AI_SERVICE_URL
+        sync: false
+      # Comma-separated allowed browser origins (deployed dashboard + web-pos).
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  # ── AI Service (Python FastAPI) ──
+  - type: web
+    name: pos-probe-ai
+    runtime: docker
+    plan: free
+    dockerfilePath: ./ai-service/Dockerfile
+    dockerContext: ./ai-service
+    healthCheckPath: /health
+    autoDeploy: true
+    # DuckDB lives on an ephemeral disk; the scheduler re-syncs from Postgres.
+    # To persist it across deploys, add a free disk mounted at /app/data.
+    # disk:
+    #   name: duckdb-data
+    #   mountPath: /app/data
+    #   sizeGB: 1
+    envVars:
+      # ── Legacy PostgreSQL (READ-ONLY) — same Neon DB as api-pos ──
+      - key: POSTGRES_HOST
+        sync: false
+      - key: POSTGRES_PORT
+        value: "5432"
+      - key: POSTGRES_DB
+        value: pos_db
+      - key: POSTGRES_USER
+        sync: false
+      - key: POSTGRES_PASSWORD
+        sync: false
+      # Neon requires SSL.
+      - key: POSTGRES_SSLMODE
+        value: require
+
+      # ── Redis (Upstash) — set the full rediss:// URL ──
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_TTL_HOURS
+        value: "6"
+
+      # ── DuckDB ──
+      - key: DUCKDB_PATH
+        value: ./data/analytics.duckdb
+
+      # ── Sync + ML ──
+      - key: SYNC_INTERVAL_MINUTES
+        value: "10"
+      - key: CONTAMINATION_RATE
+        value: "0.05"
+      - key: FORECAST_CACHE_TTL
+        value: "21600"
+      - key: SYNC_RATE_LIMIT_SECONDS
+        value: "0"
+
+      # ── Auth (shared-secret HMAC; owned by another team) ──
+      # Keep false for demo. Set true + matching JWT_SECRET_KEY when integrating.
+      - key: AUTH_ENABLED
+        value: "false"
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: JWT_ALGORITHM
+        value: HS256
+
+      # ── CORS: deployed gateway + dashboard origins ──
+      - key: ALLOWED_ORIGINS
+        sync: false
