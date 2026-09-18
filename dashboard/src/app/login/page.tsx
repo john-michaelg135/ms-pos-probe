@@ -128,15 +128,51 @@ export default function LoginPage() {
       </div>
 
       {/* Right side — branding */}
-      <div className="hidden lg:flex flex-1 items-center justify-center bg-gradient-to-br from-brand-500 via-purple-600 to-brand-700 p-12">
-        <div className="text-center text-white space-y-4">
-          <div className="text-5xl font-bold">POS-PROBE</div>
-          <p className="text-lg text-white/80 max-w-sm">
-            Predictive Restocking &amp; Outlier Behavior Engine
-          </p>
-          <p className="text-sm text-white/60 mt-4">
-            AI-powered demand forecasting and fraud detection
-          </p>
+      <div className="hidden lg:flex flex-1 items-center justify-center p-8">
+        <div className="relative w-full h-full max-w-2xl overflow-hidden rounded-3xl bg-neutral-950 flex flex-col justify-center px-14 py-16">
+          {/* Subtle decorative graphic */}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            className="pointer-events-none absolute -right-16 bottom-0 h-[26rem] w-[26rem] text-white/[0.03]"
+          >
+            <path
+              d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09zM12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+
+          <div className="relative z-10 space-y-6 max-w-md">
+            <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90">
+              System Update v4.2
+            </span>
+
+            <h2 className="text-4xl font-bold leading-tight text-white">
+              POS-PROBE Analytics is now live.
+            </h2>
+
+            <p className="text-base leading-relaxed text-white/60">
+              Predictive restocking and outlier behavior detection, powered by
+              AI-driven demand forecasting and fraud analytics.
+            </p>
+
+            <div className="pt-2">
+              <span className="inline-flex items-center rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-neutral-950">
+                Predictive Restocking &amp; Outlier Behavior Engine
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
