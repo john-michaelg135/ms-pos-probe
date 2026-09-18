@@ -122,7 +122,7 @@ export default function LoginPage() {
           </form>
 
           <p className="text-xs text-muted-foreground text-center">
-            POS-PROBE Analytics Dashboard • Demo Access
+            POS-PROBE Analytics Dashboard • Standard
           </p>
         </div>
       </div>
