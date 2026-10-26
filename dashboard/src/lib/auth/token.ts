@@ -9,6 +9,8 @@ export type ProbeUser = {
   /** Their POS role, e.g. "Super Admin" or "POS Manager". */
   posRole: string;
   role: UserRole;
+  /** A manager's branch; null for the owner, who sees every location. */
+  location: { id: number; name: string } | null;
 };
 
 export const SESSION_COOKIE = "probe_session";
@@ -55,12 +57,21 @@ export function verifyToken(token: string | undefined, purpose: "probe-handoff" 
     if (claims.role !== "owner" && claims.role !== "manager") return null;
     if (typeof claims.name !== "string" || typeof claims.username !== "string") return null;
 
+    const location =
+      claims.location && typeof claims.location.name === "string"
+        ? { id: Number(claims.location.id), name: claims.location.name }
+        : null;
+
+    // A manager is always scoped to a branch; a pass without one isn't usable.
+    if (claims.role === "manager" && !location) return null;
+
     return {
       name: claims.name,
       username: claims.username,
       email: typeof claims.email === "string" ? claims.email : "",
       posRole: typeof claims.posRole === "string" ? claims.posRole : "",
       role: claims.role,
+      location: claims.role === "manager" ? location : null,
     };
   } catch {
     return null;

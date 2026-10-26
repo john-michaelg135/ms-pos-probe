@@ -10,6 +10,8 @@ interface AuthUser {
   email: string;
   /** Their POS role, e.g. "Super Admin" or "POS Manager". */
   posRole: string;
+  /** A manager's branch; null for the owner, who sees every location. */
+  location: { id: number; name: string } | null;
 }
 
 interface AuthState {
@@ -42,7 +44,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Activates the api.ts request interceptor; the backend doesn't verify it yet.
       localStorage.setItem("access_token", `probe.${u.username}.${u.role}`);
       set({
-        user: { username: u.username, role: u.role, displayName: u.name, email: u.email, posRole: u.posRole },
+        user: {
+          username: u.username,
+          role: u.role,
+          displayName: u.name,
+          email: u.email,
+          posRole: u.posRole,
+          location: u.location ?? null,
+        },
         isAuthenticated: true,
       });
     } catch {

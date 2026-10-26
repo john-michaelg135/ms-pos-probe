@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import {
   CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle,
 } from "@/lib/chart-theme";
+import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
 export default function HomePage() {
   const { user } = useAuthStore();
@@ -59,9 +60,11 @@ function OwnerDashboard() {
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Welcome back{user ? `, ${user.displayName}` : ""}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Here&apos;s your business overview for the last 30 days
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Here&apos;s your business overview for the last 30 days</span>
+          <span aria-hidden>·</span>
+          <PageLocationBadge />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -216,12 +219,14 @@ function ManagerDashboard() {
 
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const todayRevenue = useQuery({ queryKey: ["analytics", "today", today], queryFn: () => fetchRevenue("day", today, today), refetchInterval: 60000 });
+  // A manager's figures are for their branch only.
+  const lockedLocation = useLockedLocation() ?? undefined;
+  const todayRevenue = useQuery({ queryKey: ["analytics", "today", today, lockedLocation], queryFn: () => fetchRevenue("day", today, today, lockedLocation), refetchInterval: 60000 });
 
   const totalSalesToday = todayRevenue.data?.[0]?.total_revenue ?? null;
   const totalOrdersToday = todayRevenue.data?.[0]?.total_orders ?? null;
 
-  const activeAlerts = useQuery({ queryKey: ["alerts", "active-count"], queryFn: () => fetchAlerts({ status: "New", page: 1 }), refetchInterval: 30000 });
+  const activeAlerts = useQuery({ queryKey: ["alerts", "active-count", lockedLocation], queryFn: () => fetchAlerts({ status: "New", page: 1, location_name: lockedLocation }), refetchInterval: 30000 });
   const alertCount = activeAlerts.data?.total ?? 0;
 
   const handleSyncNow = async () => {
@@ -247,7 +252,11 @@ function ManagerDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">System overview and key metrics at a glance</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>System overview and key metrics at a glance</span>
+          <span aria-hidden>·</span>
+          <PageLocationBadge />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

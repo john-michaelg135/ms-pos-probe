@@ -17,6 +17,7 @@ import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
 import {
   CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
 } from "@/lib/chart-theme";
+import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
 const FORECAST_WINDOWS = [
   { label: "7 Days", value: "7" },
@@ -34,7 +35,10 @@ export default function ForecastPage() {
   const [days, setDays] = useState(7);
   const [productFilter, setProductFilter] = useState("all");
   const [selectedVariationId, setSelectedVariationId] = useState<number | null>(null);
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  // A manager's forecast is fixed to their branch; the owner picks any location.
+  const lockedLocation = useLockedLocation();
+  const [pickedLocation, setSelectedLocationId] = useState<string | null>(null);
+  const selectedLocationId = lockedLocation ?? pickedLocation;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["forecast", days, selectedLocationId],
@@ -107,12 +111,15 @@ export default function ForecastPage() {
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Demand Forecast</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Predicted daily demand for each Ube product variation
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>Predicted daily demand for each Ube product variation</span>
+            <span aria-hidden>·</span>
+            <PageLocationBadge />
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 lg:items-end">
+          {!lockedLocation && (
           <div className="w-[280px]">
             <Select
               value={selectedLocationId ?? "all"}
@@ -129,6 +136,7 @@ export default function ForecastPage() {
               </SelectContent>
             </Select>
           </div>
+          )}
 
           <ToggleGroupPills
             className="w-[280px]"

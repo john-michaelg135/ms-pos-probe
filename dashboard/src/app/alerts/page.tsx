@@ -17,6 +17,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
 // Table badges and row actions, styled like the POS tables.
 const PILL = "rounded-[6px] border-current/20 px-2 py-0.5 text-[10px] font-bold uppercase";
@@ -52,9 +53,16 @@ export default function AlertsPage() {
   const [page, setPage] = useState(1);
   const [riskFilter, setRiskFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [locationFilter, setLocationFilter] = useState("All");
+  // A manager only sees their own branch's alerts; the owner filters by any location.
+  const lockedLocation = useLockedLocation();
+  const [pickedLocation, setLocationFilter] = useState("All");
+  const locationFilter = lockedLocation ?? pickedLocation;
   const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const lockedLocationRef = useRef(lockedLocation);
+  useEffect(() => {
+    lockedLocationRef.current = lockedLocation;
+  }, [lockedLocation]);
 
   useEffect(() => {
     const wsUrl = (process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5020") + "/api/probe/alerts/ws";
@@ -68,6 +76,7 @@ export default function AlertsPage() {
       ws.onmessage = (event) => {
         try {
           const alert = JSON.parse(event.data) as AlertItem;
+          if (lockedLocationRef.current && alert.location_name !== lockedLocationRef.current) return;
           setLiveAlerts((prev) => [alert, ...prev].slice(0, 50));
         } catch {}
       };
@@ -121,7 +130,11 @@ export default function AlertsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Anomaly Alerts</h1>
-        <p className="text-sm text-muted-foreground mt-1">Real-time fraud detection alerts</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Real-time fraud detection alerts</span>
+          <span aria-hidden>·</span>
+          <PageLocationBadge />
+        </div>
       </div>
 
       {/* Live Alert Panel */}
@@ -178,6 +191,7 @@ export default function AlertsPage() {
                 <SelectItem value="Dismissed">Dismissed</SelectItem>
               </SelectContent>
             </Select>
+            {!lockedLocation && (
             <Select value={locationFilter} onValueChange={(v: string) => { setLocationFilter(v); setPage(1); }}>
               <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -187,6 +201,7 @@ export default function AlertsPage() {
                 ))}
               </SelectContent>
             </Select>
+            )}
           </div>
         </CardContent>
       </Card>

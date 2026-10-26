@@ -21,7 +21,7 @@ import { useSession } from "@/lib/auth/session";
 import { canAccessRoute, useAuthStore } from "@/stores/use-auth-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { BrandLockup } from "./BrandLockup";
-import { LogoutButton } from "./LogoutButton";
+import { ReturnToPosButton } from "./ReturnToPosButton";
 import { SIDEBAR_SECTIONS } from "./SidebarNav";
 import { UserCard } from "./UserCard";
 
@@ -94,7 +94,7 @@ function Navigation() {
             }}
           />
         ) : null}
-        <LogoutButton />
+        <ReturnToPosButton />
       </SidebarFooter>
     </>
   );

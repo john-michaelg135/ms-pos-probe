@@ -18,9 +18,10 @@ async def get_revenue(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
     location_id: int | None = Query(default=None),
+    location_name: str | None = Query(default=None),
     token: dict = Depends(verify_token),
 ):
-    """Revenue over time grouped by day, week, or month."""
+    """Revenue over time grouped by day, week, or month, optionally for one location."""
     conn = get_duckdb()
 
     if not date_from:
@@ -35,10 +36,14 @@ async def get_revenue(
         "month": "DATE_TRUNC('month', transaction_date)::DATE",
     }[group_by]
 
-    location_filter = "AND location_id = ?" if location_id else ""
+    location_filter = ""
     params = [str(date_from), str(date_to) + " 23:59:59"]
     if location_id:
+        location_filter += " AND location_id = ?"
         params.append(location_id)
+    if location_name:
+        location_filter += " AND location_name = ?"
+        params.append(location_name)
 
     query = f"""
         SELECT
@@ -99,9 +104,10 @@ async def get_sales_by_location(
 async def get_sales_by_product(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
+    location_name: str | None = Query(default=None),
     token: dict = Depends(verify_token),
 ):
-    """Total revenue and quantity grouped by product and variation."""
+    """Total revenue and quantity grouped by product and variation, optionally for one location."""
     conn = get_duckdb()
 
     if not date_from:
@@ -109,7 +115,12 @@ async def get_sales_by_product(
     if not date_to:
         date_to = date.today()
 
-    query = """
+    location_filter = "AND location_name = ?" if location_name else ""
+    params = [str(date_from), str(date_to) + " 23:59:59"]
+    if location_name:
+        params.append(location_name)
+
+    query = f"""
         SELECT
             product_name,
             variation_name,
@@ -119,11 +130,12 @@ async def get_sales_by_product(
         WHERE transaction_date >= ?
           AND transaction_date <= ?
           AND is_refund = FALSE
+          {location_filter}
         GROUP BY product_name, variation_name
         ORDER BY total_quantity DESC
     """
 
-    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59"]).fetchall()
+    result = conn.execute(query, params).fetchall()
     columns = ["product_name", "variation_name", "total_revenue", "total_quantity"]
 
     return [dict(zip(columns, row)) for row in result]

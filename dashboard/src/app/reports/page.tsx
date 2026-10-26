@@ -24,6 +24,7 @@ import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
 import {
   CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
 } from "@/lib/chart-theme";
+import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
 const REPORT_CATEGORIES = [
   { label: "All", value: "all" },
@@ -47,10 +48,12 @@ export default function ReportsPage() {
   const [category, setCategory] = useState("all");
   const [rangeDays, setRangeDays] = useState(30);
   const { dateFrom, dateTo } = useAnalyticsStore();
+  // A manager's report covers their branch only.
+  const lockedLocation = useLockedLocation() ?? undefined;
 
   const forecast = useQuery({
-    queryKey: ["report", "forecast", rangeDays],
-    queryFn: () => fetchForecast(rangeDays),
+    queryKey: ["report", "forecast", rangeDays, lockedLocation],
+    queryFn: () => fetchForecast(rangeDays, undefined, lockedLocation),
     enabled: category === "all" || category === "forecast",
   });
 
@@ -61,20 +64,20 @@ export default function ReportsPage() {
   });
 
   const revenue = useQuery({
-    queryKey: ["report", "revenue", dateFrom, dateTo],
-    queryFn: () => fetchRevenue("day", dateFrom, dateTo),
+    queryKey: ["report", "revenue", dateFrom, dateTo, lockedLocation],
+    queryFn: () => fetchRevenue("day", dateFrom, dateTo, lockedLocation),
     enabled: category === "all" || category === "forecast",
   });
 
   const salesByProduct = useQuery({
-    queryKey: ["report", "product", dateFrom, dateTo],
-    queryFn: () => fetchSalesByProduct(dateFrom, dateTo),
+    queryKey: ["report", "product", dateFrom, dateTo, lockedLocation],
+    queryFn: () => fetchSalesByProduct(dateFrom, dateTo, lockedLocation),
     enabled: category === "all" || category === "forecast",
   });
 
   const alerts = useQuery({
-    queryKey: ["report", "alerts", dateFrom, dateTo],
-    queryFn: () => fetchAlerts({ date_from: dateFrom, date_to: dateTo, page: 1 }),
+    queryKey: ["report", "alerts", dateFrom, dateTo, lockedLocation],
+    queryFn: () => fetchAlerts({ date_from: dateFrom, date_to: dateTo, page: 1, location_name: lockedLocation }),
     enabled: category === "all" || category === "anomaly",
   });
 
@@ -116,9 +119,11 @@ export default function ReportsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Generated Reports</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            AI-generated analytical reports with charts and explanations
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>AI-generated analytical reports with charts and explanations</span>
+            <span aria-hidden>·</span>
+            <PageLocationBadge />
+          </div>
         </div>
         <Button onClick={handlePrint}>
           <Printer className="w-4 h-4" />

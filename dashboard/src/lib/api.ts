@@ -210,11 +210,13 @@ export interface ChannelSalesItem {
 export async function fetchRevenue(
   groupBy: "day" | "week" | "month" = "day",
   dateFrom?: string,
-  dateTo?: string
+  dateTo?: string,
+  locationName?: string
 ): Promise<RevenueItem[]> {
   const params: Record<string, string> = { group_by: groupBy };
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
+  if (locationName) params.location_name = locationName;
   const { data } = await api.get<RevenueItem[]>("/api/probe/analytics/revenue", { params });
   return data;
 }
@@ -232,11 +234,13 @@ export async function fetchSalesByLocation(
 
 export async function fetchSalesByProduct(
   dateFrom?: string,
-  dateTo?: string
+  dateTo?: string,
+  locationName?: string
 ): Promise<ProductSalesItem[]> {
   const params: Record<string, string> = {};
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
+  if (locationName) params.location_name = locationName;
   const { data } = await api.get<ProductSalesItem[]>("/api/probe/analytics/sales-by-product", { params });
   return data;
 }

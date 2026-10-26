@@ -24,7 +24,9 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         <p className="mt-2 text-sm text-muted-foreground">
           {reason === "expired"
             ? "That link has expired. Open the probe again from the POS."
-            : "Sign in to the POS, then use the Open Probe button on the Sales Processing page. It's available to the owner and POS Managers."}
+            : reason === "unassigned"
+              ? "You aren't assigned to a branch yet, and the probe shows a manager their own branch's data. Ask the owner to assign you in the POS's Location Management."
+              : "Sign in to the POS, then use the Open Probe button on the Sales Processing page. It's available to the owner and POS Managers."}
         </p>
         <a
           className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"

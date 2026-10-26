@@ -11,6 +11,7 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { PageLocationBadge } from "@/components/shared/PageLocationBadge";
 
 export default function AccuracyPage() {
   const backtest = useQuery({
@@ -28,9 +29,11 @@ export default function AccuracyPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Model Accuracy Report</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Mathematical proof of model accuracy for academic defense verification
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>Mathematical proof of model accuracy for academic defense verification</span>
+            <span aria-hidden>·</span>
+            <PageLocationBadge />
+          </div>
         </div>
 
         {/* Forecast Section */}

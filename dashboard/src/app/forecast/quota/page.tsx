@@ -16,6 +16,7 @@ import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
+import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
 const PRODUCT_FILTERS = [
   { label: "All Products", value: "all" },
@@ -30,7 +31,10 @@ export default function QuotaPage() {
     return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
   });
   const [productFilter, setProductFilter] = useState("all");
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  // A manager's quota is fixed to their branch; the owner picks any location.
+  const lockedLocation = useLockedLocation();
+  const [pickedLocation, setSelectedLocationId] = useState<string | null>(null);
+  const selectedLocationId = lockedLocation ?? pickedLocation;
 
   const { data, isLoading } = useQuery({
     queryKey: ["forecast", "quota", 30, selectedLocationId],
@@ -67,9 +71,14 @@ export default function QuotaPage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Restocking Quota</h1>
-          <p className="text-sm text-muted-foreground mt-1">AI-recommended daily restocking quantities</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>AI-recommended daily restocking quantities</span>
+            <span aria-hidden>·</span>
+            <PageLocationBadge />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {!lockedLocation && (
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-muted-foreground" />
             <Select
@@ -87,6 +96,7 @@ export default function QuotaPage() {
               </SelectContent>
             </Select>
           </div>
+          )}
 
           <ToggleGroupPills options={PRODUCT_FILTERS} value={productFilter} onChange={setProductFilter} />
 
