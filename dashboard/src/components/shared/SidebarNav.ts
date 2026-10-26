@@ -1,92 +1,44 @@
 import {
-  LayoutDashboard,
-  TrendingUp,
-  ListChecks,
-  BarChart3,
-  ShieldAlert,
   FileText,
+  LayoutDashboard,
+  ListChecks,
+  ShieldAlert,
   Target,
-  Settings,
-  Building2,
-  ShoppingCart,
-  Users2,
-  CreditCard,
-  Truck,
+  TrendingUp,
+  type LucideIcon,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
-export interface NavItem {
-  name: string;
+export type NavDestination = {
   href: string;
+  label: string;
   icon: LucideIcon;
-}
-
-export interface SystemItem {
-  fullName: string;
-  desc: string;
-  icon: LucideIcon;
-  active: boolean;
-}
-
-/**
- * POS-PROBE navigation tabs — same routes/content as the previous
- * collapsible "POS-PROBE" dropdown, now rendered as a flat sidebar menu
- * (strictly using the br-trellis sidebar structure).
- */
-export const mainNavItems: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Demand Forecast", href: "/forecast", icon: TrendingUp },
-  { name: "Restocking Quota", href: "/forecast/quota", icon: ListChecks },
-  { name: "Sales Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Anomaly Alerts", href: "/alerts", icon: ShieldAlert },
-  { name: "Reports", href: "/reports", icon: FileText },
-  { name: "Model Accuracy", href: "/accuracy", icon: Target },
-];
-
-export const settingsNavItem: NavItem = {
-  name: "Settings",
-  href: "/settings",
-  icon: Settings,
 };
 
-export const navItems: NavItem[] = [...mainNavItems];
+export type SidebarSection = {
+  /** Heading shown above the section; unlabelled sections have none. */
+  label?: string;
+  destinations: readonly NavDestination[];
+};
 
-/** Enterprise module switcher (mirrors br-trellis) — POS-PROBE is the active one. */
-export const systems: SystemItem[] = [
+/** The sidebar, in order, grouped the way the Enterprise Portal groups its own. */
+export const SIDEBAR_SECTIONS: readonly SidebarSection[] = [
+  { destinations: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] },
   {
-    fullName: "POS-PROBE Analytics",
-    desc: "Forecasting & anomaly detection",
-    icon: BarChart3,
-    active: true,
+    label: "FORECASTING",
+    destinations: [
+      { href: "/forecast", label: "Demand Forecast", icon: TrendingUp },
+      { href: "/forecast/quota", label: "Restocking Quota", icon: ListChecks },
+    ],
   },
   {
-    fullName: "Point of Sale",
-    desc: "Retail & register checkout",
-    icon: CreditCard,
-    active: false,
+    label: "INSIGHTS",
+    destinations: [
+      { href: "/alerts", label: "Anomaly Alerts", icon: ShieldAlert },
+      { href: "/reports", label: "Reports", icon: FileText },
+    ],
   },
   {
-    fullName: "Customer Relationship Management",
-    desc: "Contact profiles, tickets & marketing",
-    icon: Building2,
-    active: false,
-  },
-  {
-    fullName: "E-Commerce Storefront",
-    desc: "Online orders & products",
-    icon: ShoppingCart,
-    active: false,
-  },
-  {
-    fullName: "Human Resource Management",
-    desc: "Staff directory & payroll",
-    icon: Users2,
-    active: false,
-  },
-  {
-    fullName: "Supply Chain Management",
-    desc: "Inventory & logistics",
-    icon: Truck,
-    active: false,
+    label: "MODEL",
+    destinations: [{ href: "/accuracy", label: "Model Accuracy", icon: Target }],
   },
 ];

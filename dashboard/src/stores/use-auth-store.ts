@@ -76,8 +76,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 // Role-based route access
 export const ROLE_ACCESS: Record<UserRole, string[]> = {
-  owner: ["/", "/analytics", "/reports"],
-  manager: ["/", "/forecast", "/forecast/quota", "/analytics", "/alerts", "/reports", "/accuracy"],
+  owner: ["/", "/reports"],
+  manager: ["/", "/forecast", "/forecast/quota", "/alerts", "/reports", "/accuracy"],
 };
 
 export function canAccessRoute(role: UserRole | undefined, path: string): boolean {

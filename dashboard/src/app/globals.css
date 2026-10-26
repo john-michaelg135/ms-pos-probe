@@ -4,19 +4,18 @@
 
 @theme {
   --font-*: initial;
-  --font-outfit: Outfit, sans-serif;
 
   /* ── Color Tokens (matching POS frontend design system) ── */
-  --color-brand-50: #ecf3ff;
-  --color-brand-100: #dde9ff;
-  --color-brand-200: #c2d6ff;
-  --color-brand-300: #9cb9ff;
-  --color-brand-400: #7592ff;
-  --color-brand-500: #465fff;
-  --color-brand-600: #3641f5;
-  --color-brand-700: #2a31d8;
-  --color-brand-800: #252dae;
-  --color-brand-900: #262e89;
+  --color-brand-50: #f6f0fb;
+  --color-brand-100: #efe6f8;
+  --color-brand-200: #ddc8ef;
+  --color-brand-300: #c9a3f0;
+  --color-brand-400: #8a52bf;
+  --color-brand-500: #5b2a86;
+  --color-brand-600: #4e2373;
+  --color-brand-700: #421d61;
+  --color-brand-800: #36184f;
+  --color-brand-900: #2b1340;
 
   --color-gray-50: #f9fafb;
   --color-gray-100: #f2f4f7;
@@ -119,7 +118,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  --font-sans: var(--font-hanken-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
@@ -132,8 +131,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: #5b2a86;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -174,17 +173,32 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar: #fafafa;
+  --sidebar-foreground: #18181b;
+  --sidebar-primary: #5b2a86;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f4f4f5;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #ebebeb;
   --sidebar-ring: oklch(0.708 0 0);
   --metric-positive: var(--success);
   --metric-negative: oklch(0.62 0.18 45);
   --metric-warning: var(--warning);
+  /* Enterprise Portal shell tokens (brenraphaels-authentication-microservice) */
+  --surface: oklch(1 0 0);
+  --on-surface-variant: #71717a;
+  --nav-foreground: #3f3f46;
+  --nav-section: #8b8b94;
+  --brand-badge: #f3e8ff;
+  --brand-badge-foreground: #6d28d9;
+  --identity: #5b2a86;
+  --identity-foreground: #ffffff;
+  --identity-badge: #efeaf5;
+  --identity-border: #e6e1ee;
+  --identity-soft: #efe6f8;
+  --scrim: rgb(18 13 26 / 0.45);
+  --dialog-footer: #fafafa;
+  --dialog-divider: #f0f0f2;
 }
 
 .dark {
@@ -194,8 +208,9 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: #8a52bf;
+  --primary-foreground: #ffffff;
+  --color-brand-500: #b48ae0;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -236,9 +251,9 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: oklch(0.18 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: #8a52bf;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -247,10 +262,36 @@
   --metric-positive: var(--success);
   --metric-negative: oklch(0.62 0.18 45);
   --metric-warning: var(--warning);
+  /* Portal shell tokens: the Portal has no dark theme, so these are dark counterparts. */
+  --surface: oklch(0.145 0 0);
+  --on-surface-variant: #a1a1aa;
+  --nav-foreground: #d4d4d8;
+  --nav-section: #8b8b94;
+  --brand-badge: #3b2457;
+  --brand-badge-foreground: #d8b4fe;
+  --identity: #8b5cc4;
+  --identity-foreground: #ffffff;
+  --identity-badge: #2e2340;
+  --identity-border: #3a3049;
+  --identity-soft: #2e2340;
+  --scrim: rgb(0 0 0 / 0.6);
+  --dialog-footer: oklch(0.18 0 0);
+  --dialog-divider: oklch(0.269 0 0);
+}
+
+/* Tailwind v4 borders default to currentColor; use the soft border token like the POS. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border);
+  }
 }
 
 body {
-  font-family: var(--font-outfit);
+  font-family: var(--font-sans);
 }
 
 /* Light mode body */
@@ -532,6 +573,21 @@ body:is(.dark *) {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Enterprise Portal shell */
+  --color-surface: var(--surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-nav-foreground: var(--nav-foreground);
+  --color-nav-section: var(--nav-section);
+  --color-brand-badge: var(--brand-badge);
+  --color-brand-badge-foreground: var(--brand-badge-foreground);
+  --color-identity: var(--identity);
+  --color-identity-foreground: var(--identity-foreground);
+  --color-identity-badge: var(--identity-badge);
+  --color-identity-border: var(--identity-border);
+  --color-identity-soft: var(--identity-soft);
+  --color-scrim: var(--scrim);
+  --color-dialog-footer: var(--dialog-footer);
+  --color-dialog-divider: var(--dialog-divider);
 }
 
 /* ── Radix Sheet & Overlay Animations (Tailwind v4) — ported from br-trellis ── */

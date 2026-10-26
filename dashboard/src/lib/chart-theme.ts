@@ -6,12 +6,12 @@
 
 export const CHART_COLORS = [
   "var(--color-brand-500)",
-  "var(--color-purple-500)",
   "var(--color-blue-light-500)",
   "var(--color-warning-500)",
   "var(--color-success-500)",
   "var(--color-error-500)",
   "#ee46bc",
+  "var(--color-purple-500)",
 ];
 
 export const AXIS_TICK = {
