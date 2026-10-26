@@ -19,10 +19,10 @@ import {
 } from "@/components/ui/dialog";
 
 const RISK_BORDER: Record<string, string> = {
-  Critical: "border-l-destructive",
-  High: "border-l-error-500",
-  Medium: "border-l-warning-500",
-  Low: "border-l-success-500",
+  Critical: "border-l-rose-100",
+  High: "border-l-rose-100",
+  Medium: "border-l-amber-100",
+  Low: "border-l-emerald-100",
 };
 
 function riskVariant(level: string): "destructive" | "warning" | "success" | "secondary" {
@@ -267,7 +267,7 @@ function AlertReviewModal({
 
   return (
     <Dialog open={!!alert} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[85vh]">
         {alert && (
           <>
             <DialogHeader>

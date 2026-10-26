@@ -131,13 +131,13 @@ export default function AccuracyPage() {
 
                 <div className="flex items-center gap-2 mb-3">
                   <h3 className="text-xs font-semibold text-foreground">Confusion Matrix</h3>
-                  <InfoTooltip text="A Confusion Matrix visualizes classification performance: True Negatives (correctly identified normal), False Positives (normal flagged as anomaly), False Negatives (missed anomalies), True Positives (correctly detected anomalies). Ideally TN and TP are high while FP and FN are low." />
+                  <InfoTooltip title="Confusion Matrix" text="A Confusion Matrix visualizes classification performance: True Negatives (correctly identified normal), False Positives (normal flagged as anomaly), False Negatives (missed anomalies), True Positives (correctly detected anomalies). Ideally TN and TP are high while FP and FN are low." />
                 </div>
                 <div className="grid grid-cols-2 gap-2 max-w-[320px]">
-                  <ConfusionCell label="True Negative" value={anomalyMetrics.data.metrics.confusion_matrix.true_negative} tone="success" />
+                  <ConfusionCell label="True Negative" value={anomalyMetrics.data.metrics.confusion_matrix.true_negative} tone="brand" />
                   <ConfusionCell label="False Positive" value={anomalyMetrics.data.metrics.confusion_matrix.false_positive} tone="destructive" />
                   <ConfusionCell label="False Negative" value={anomalyMetrics.data.metrics.confusion_matrix.false_negative} tone="warning" />
-                  <ConfusionCell label="True Positive" value={anomalyMetrics.data.metrics.confusion_matrix.true_positive} tone="success" />
+                  <ConfusionCell label="True Positive" value={anomalyMetrics.data.metrics.confusion_matrix.true_positive} tone="brand" />
                 </div>
 
                 <p className="text-[10px] text-muted-foreground mt-3">
@@ -157,7 +157,7 @@ function MetricCard({ label, value, sublabel, pass, tooltip }: { label: string; 
     <div className="bg-muted/50 rounded-xl p-4">
       <div className="flex items-start justify-between">
         <p className="text-[10px] text-muted-foreground uppercase font-medium mb-1">{label}</p>
-        {tooltip && <InfoTooltip text={tooltip} />}
+        {tooltip && <InfoTooltip title={label} badge={value} text={tooltip} />}
       </div>
       <div className="flex items-center gap-2">
         <p className="text-lg font-bold text-foreground">{value}</p>
@@ -168,9 +168,9 @@ function MetricCard({ label, value, sublabel, pass, tooltip }: { label: string; 
   );
 }
 
-function ConfusionCell({ label, value, tone }: { label: string; value: number; tone: "success" | "destructive" | "warning" }) {
-  const bg = tone === "success" ? "bg-success/10" : tone === "destructive" ? "bg-destructive/10" : "bg-warning/10";
-  const fg = tone === "success" ? "text-success" : tone === "destructive" ? "text-destructive" : "text-warning";
+function ConfusionCell({ label, value, tone }: { label: string; value: number; tone: "brand" | "destructive" | "warning" }) {
+  const bg = tone === "brand" ? "bg-primary/10" : tone === "destructive" ? "bg-destructive/10" : "bg-warning/10";
+  const fg = tone === "brand" ? "text-brand-500" : tone === "destructive" ? "text-destructive" : "text-warning";
   return (
     <div className={`rounded-xl p-3 text-center ${bg}`}>
       <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
@@ -179,7 +179,8 @@ function ConfusionCell({ label, value, tone }: { label: string; value: number; t
   );
 }
 
-function InfoTooltip({ text }: { text: string }) {
+/** Info icon whose tooltip is a small card: metric name, its current value as a pill, then the explanation. */
+function InfoTooltip({ title, badge, text }: { title: string; badge?: string; text: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -187,7 +188,17 @@ function InfoTooltip({ text }: { text: string }) {
           <Info className="w-3.5 h-3.5" />
         </button>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs leading-relaxed">{text}</TooltipContent>
+      <TooltipContent className="w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-lg">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[15px] font-bold leading-snug text-primary">{title}</p>
+          {badge && (
+            <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary tabular-nums">
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{text}</p>
+      </TooltipContent>
     </Tooltip>
   );
 }

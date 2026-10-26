@@ -9,7 +9,7 @@ import {
 import { Printer, TrendingUp, ShieldAlert, Filter } from "lucide-react";
 import {
   fetchForecast, fetchForecastInsights, fetchRevenue,
-  fetchSalesByLocation, fetchSalesByProduct, fetchAlerts, fetchAnomalyMetrics,
+  fetchSalesByProduct, fetchAlerts, fetchAnomalyMetrics,
 } from "@/lib/api";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 import { getVariationSortIndex } from "@/lib/variation-order";
@@ -69,12 +69,6 @@ export default function ReportsPage() {
   const salesByProduct = useQuery({
     queryKey: ["report", "product", dateFrom, dateTo],
     queryFn: () => fetchSalesByProduct(dateFrom, dateTo),
-    enabled: category === "all" || category === "forecast",
-  });
-
-  const salesByLocation = useQuery({
-    queryKey: ["report", "location", dateFrom, dateTo],
-    queryFn: () => fetchSalesByLocation(dateFrom, dateTo),
     enabled: category === "all" || category === "forecast",
   });
 
@@ -252,28 +246,6 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           )}
-
-          {salesByLocation.data && salesByLocation.data.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Sales by Location</CardTitle>
-                <CardDescription>Revenue distribution across branches — helps plan location-specific restocking.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={Math.max(180, salesByLocation.data.length * 50)}>
-                  <BarChart data={salesByLocation.data} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
-                    <XAxis type="number" tick={AXIS_TICK} tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`} />
-                    <YAxis type="category" dataKey="location_name" tick={AXIS_TICK} width={170} />
-                    <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(v) => [`₱${Number(v).toLocaleString()}`, "Revenue"]} />
-                    <Bar dataKey="total_revenue" radius={[0, 4, 4, 0]}>
-                      {salesByLocation.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
         </>
       )}
 
@@ -303,10 +275,10 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3 max-w-[320px]">
-                  <ConfusionCell label="True Negative" value={anomalyMetrics.data.metrics.confusion_matrix.true_negative} tone="success" />
+                  <ConfusionCell label="True Negative" value={anomalyMetrics.data.metrics.confusion_matrix.true_negative} tone="brand" />
                   <ConfusionCell label="False Positive" value={anomalyMetrics.data.metrics.confusion_matrix.false_positive} tone="destructive" />
                   <ConfusionCell label="False Negative" value={anomalyMetrics.data.metrics.confusion_matrix.false_negative} tone="warning" />
-                  <ConfusionCell label="True Positive" value={anomalyMetrics.data.metrics.confusion_matrix.true_positive} tone="success" />
+                  <ConfusionCell label="True Positive" value={anomalyMetrics.data.metrics.confusion_matrix.true_positive} tone="brand" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
                   The Isolation Forest model identifies anomalous POS transactions by learning normal behavior patterns.
@@ -402,9 +374,9 @@ function MetricCard({ label, value, sublabel }: { label: string; value: string; 
   );
 }
 
-function ConfusionCell({ label, value, tone }: { label: string; value: number; tone: "success" | "destructive" | "warning" }) {
+function ConfusionCell({ label, value, tone }: { label: string; value: number; tone: "brand" | "destructive" | "warning" }) {
   const toneClass =
-    tone === "success" ? "text-success bg-success/10" :
+    tone === "brand" ? "text-brand-500 bg-primary/10" :
     tone === "destructive" ? "text-destructive bg-destructive/10" :
     "text-warning bg-warning/10";
   return (
