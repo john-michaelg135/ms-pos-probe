@@ -137,8 +137,8 @@ export default function QuotaPage() {
       </div>
 
       {/* Quota Table */}
-      <Card className="print:border-none print:shadow-none">
-        <CardContent className="pt-6 print:p-0">
+      <Card className="overflow-hidden print:border-none print:shadow-none">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="h-[200px] flex items-center justify-center">
               <p className="text-sm text-muted-foreground animate-pulse">Loading quota data…</p>
@@ -159,7 +159,7 @@ export default function QuotaPage() {
                 <TableBody>
                   {quotaData.map((row) => (
                     <TableRow key={row.variation_id}>
-                      <TableCell className="font-semibold text-gray-900 dark:text-white">{row.product_name}</TableCell>
+                      <TableCell className="font-medium text-muted-foreground">{row.product_name}</TableCell>
                       <TableCell className="text-muted-foreground">{row.variation_name}</TableCell>
                       <TableCell className="text-right">{row.predicted_quantity} units</TableCell>
                       <TableCell className="text-right text-muted-foreground">{row.lower_bound} units</TableCell>

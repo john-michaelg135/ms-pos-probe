@@ -65,7 +65,7 @@ export default function AccuracyPage() {
 
                 <details className="group">
                   <summary className="text-sm text-brand-500 cursor-pointer hover:underline font-medium">View per-variation breakdown</summary>
-                  <div className="mt-3 overflow-x-auto">
+                  <div className="mt-3 overflow-hidden overflow-x-auto rounded-xl border border-border shadow-sm">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -79,7 +79,7 @@ export default function AccuracyPage() {
                       <TableBody>
                         {backtest.data.metrics.map((m, i) => (
                           <TableRow key={i}>
-                            <TableCell className="font-semibold text-gray-900 dark:text-white">{m.variation_name}</TableCell>
+                            <TableCell className="font-medium text-muted-foreground">{m.variation_name}</TableCell>
                             <TableCell className="text-right text-muted-foreground">{m.mape}%</TableCell>
                             <TableCell className="text-right text-muted-foreground">{m.mae}</TableCell>
                             <TableCell className="text-right text-muted-foreground">{m.r_squared}</TableCell>
@@ -205,8 +205,11 @@ function InfoTooltip({ title, badge, text }: { title: string; badge?: string; te
 
 function PassFailBadge({ passed, className = "" }: { passed: boolean; className?: string }) {
   return (
-    <Badge variant={passed ? "success" : "warning"} className={className}>
-      {passed ? "✅ PASSED" : "⚠️ NEEDS TUNING"}
+    <Badge
+      variant={passed ? "success" : "warning"}
+      className={`rounded-lg border-current/20 px-3.5 py-1.5 text-sm font-bold uppercase tracking-wide ${className}`}
+    >
+      {passed ? "Passed" : "Needs Tuning"}
     </Badge>
   );
 }

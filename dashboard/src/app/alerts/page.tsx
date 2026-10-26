@@ -18,6 +18,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 
+// Table badges and row actions, styled like the POS tables.
+const PILL = "rounded-[6px] border-current/20 px-2 py-0.5 text-[10px] font-bold uppercase";
+const ACTION_BUTTON =
+  "h-8 cursor-pointer rounded-lg border border-primary/25 bg-transparent px-4 text-xs font-bold uppercase text-primary transition-colors hover:bg-primary/10";
+const ACTION_BUTTON_MUTED =
+  "h-8 cursor-pointer rounded-lg border border-border bg-transparent px-4 text-xs font-bold uppercase text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
+
 const RISK_BORDER: Record<string, string> = {
   Critical: "border-l-rose-100",
   High: "border-l-rose-100",
@@ -151,7 +158,7 @@ export default function AlertsPage() {
           <CardTitle>Alert History</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-3 mb-4">
+          <div className="flex flex-wrap gap-3">
             <Select value={riskFilter} onValueChange={(v: string) => { setRiskFilter(v); setPage(1); }}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -181,7 +188,10 @@ export default function AlertsPage() {
               </SelectContent>
             </Select>
           </div>
+        </CardContent>
+      </Card>
 
+      <Card className="overflow-hidden">
           {isLoading ? (
             <div className="h-[200px] flex items-center justify-center">
               <p className="text-sm text-muted-foreground animate-pulse">Loading…</p>
@@ -198,25 +208,26 @@ export default function AlertsPage() {
                       <TableHead>Risk</TableHead>
                       <TableHead>Reason</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {alertsData.alerts.map((alert) => (
                       <TableRow key={alert.alert_id} className={`border-l-4 ${RISK_BORDER[alert.risk_level] || "border-l-transparent"}`}>
-                        <TableCell className="text-muted-foreground">{formatDateTime(alert.detected_at)}</TableCell>
-                        <TableCell className="font-semibold text-gray-900 dark:text-white">{alert.order_id}</TableCell>
+                        <TableCell className="whitespace-nowrap font-medium text-muted-foreground">{formatDateTime(alert.detected_at)}</TableCell>
+                        <TableCell className="font-bold text-foreground">{alert.order_id}</TableCell>
                         <TableCell className="text-right">₱{alert.transaction_amount.toLocaleString()}</TableCell>
-                        <TableCell><Badge variant={riskVariant(alert.risk_level)}>{alert.risk_level}</Badge></TableCell>
+                        <TableCell><Badge variant={riskVariant(alert.risk_level)} className={PILL}>{alert.risk_level}</Badge></TableCell>
                         <TableCell className="max-w-[200px] truncate text-muted-foreground">{alert.reason}</TableCell>
-                        <TableCell><Badge variant={statusVariant(alert.status)}>{alert.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          {alert.status === "New" && (
-                            <div className="flex gap-1 justify-end">
-                              <Button size="sm" variant="secondary" onClick={() => setSelectedAlert(alert)}>Review</Button>
-                              <Button size="sm" variant="ghost" onClick={() => handleStatusUpdate(alert.alert_id, "Dismissed")}>Dismiss</Button>
-                            </div>
-                          )}
+                        <TableCell><Badge variant={statusVariant(alert.status)} className={PILL}>{alert.status}</Badge></TableCell>
+                        <TableCell>
+                          {/* Review stays available on handled alerts so their details can be reopened. */}
+                          <div className="flex gap-2">
+                            <button type="button" className={ACTION_BUTTON} onClick={() => setSelectedAlert(alert)}>Review</button>
+                            {alert.status === "New" && (
+                              <button type="button" className={ACTION_BUTTON_MUTED} onClick={() => handleStatusUpdate(alert.alert_id, "Dismissed")}>Dismiss</button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -224,7 +235,7 @@ export default function AlertsPage() {
                 </Table>
               </div>
               {alertsData.total_pages > 1 && (
-                <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center justify-between border-t border-border px-5 py-3">
                   <span className="text-xs text-muted-foreground">Page {alertsData.page} of {alertsData.total_pages} ({alertsData.total} alerts)</span>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>Previous</Button>
@@ -234,11 +245,10 @@ export default function AlertsPage() {
               )}
             </>
           ) : (
-            <div className="text-center py-8">
+            <div className="text-center py-8 px-5">
               <p className="text-sm text-muted-foreground">No anomaly alerts found. The system has not detected any suspicious transactions yet.</p>
             </div>
           )}
-        </CardContent>
       </Card>
 
       <AlertReviewModal
@@ -343,10 +353,13 @@ function AlertReviewModal({
               </div>
             </div>
 
-            <DialogFooter>
-              <Button variant="secondary" onClick={() => onDismiss(alert.alert_id)}>Dismiss Alert</Button>
-              <Button onClick={() => onMarkReviewed(alert.alert_id)}>Mark as Reviewed</Button>
-            </DialogFooter>
+            {/* Handled (dismissed or reviewed) alerts open read-only. */}
+            {alert.status === "New" && (
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => onDismiss(alert.alert_id)}>Dismiss Alert</Button>
+                <Button onClick={() => onMarkReviewed(alert.alert_id)}>Mark as Reviewed</Button>
+              </DialogFooter>
+            )}
           </>
         )}
       </DialogContent>
