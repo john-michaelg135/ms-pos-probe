@@ -113,7 +113,7 @@ export default function AlertsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Anomaly Alerts</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Anomaly Alerts</h1>
         <p className="text-sm text-muted-foreground mt-1">Real-time fraud detection alerts</p>
       </div>
 
@@ -205,7 +205,7 @@ export default function AlertsPage() {
                     {alertsData.alerts.map((alert) => (
                       <TableRow key={alert.alert_id} className={`border-l-4 ${RISK_BORDER[alert.risk_level] || "border-l-transparent"}`}>
                         <TableCell className="text-muted-foreground">{formatDateTime(alert.detected_at)}</TableCell>
-                        <TableCell className="font-medium">{alert.order_id}</TableCell>
+                        <TableCell className="font-semibold text-gray-900 dark:text-white">{alert.order_id}</TableCell>
                         <TableCell className="text-right">₱{alert.transaction_amount.toLocaleString()}</TableCell>
                         <TableCell><Badge variant={riskVariant(alert.risk_level)}>{alert.risk_level}</Badge></TableCell>
                         <TableCell className="max-w-[200px] truncate text-muted-foreground">{alert.reason}</TableCell>
@@ -280,7 +280,7 @@ function AlertReviewModal({
 
             <div className="space-y-5">
               <div>
-                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Transaction Details</h3>
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Transaction Details</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <DetailItem icon={<TrendingUp className="w-3.5 h-3.5" />} label="Amount" value={`₱${alert.transaction_amount.toLocaleString()}`} />
                   <DetailItem icon={<Clock className="w-3.5 h-3.5" />} label="Detected" value={formatDateTime(alert.detected_at)} />
@@ -290,7 +290,7 @@ function AlertReviewModal({
               </div>
 
               <div>
-                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wide mb-2">Why It Was Flagged</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Why It Was Flagged</h3>
                 <div className="space-y-1.5">
                   {alert.reason.split("; ").map((r, i) => (
                     <div key={i} className="flex items-start gap-2">
@@ -323,10 +323,10 @@ function AlertReviewModal({
                       <div className="mt-3 pt-3 border-t border-border">
                         <p className="text-xs text-muted-foreground font-medium mb-2">Historical Baseline:</p>
                         <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div><span className="text-muted-foreground">Avg Transaction: </span><span className="text-foreground font-medium">₱{explanation.historical_context.avg_transaction_amount.toLocaleString()}</span></div>
-                          <div><span className="text-muted-foreground">Avg Quantity: </span><span className="text-foreground font-medium">{explanation.historical_context.avg_quantity} units</span></div>
-                          <div><span className="text-muted-foreground">Total Analyzed: </span><span className="text-foreground font-medium">{explanation.historical_context.total_transactions_analyzed} txns</span></div>
-                          <div><span className="text-muted-foreground">Peak Hours: </span><span className="text-foreground font-medium">{explanation.historical_context.peak_hours.map(h => `${h}:00`).join(", ") || "N/A"}</span></div>
+                          <div><span className="text-muted-foreground">Avg Transaction: </span><span className="font-medium text-gray-900 dark:text-white">₱{explanation.historical_context.avg_transaction_amount.toLocaleString()}</span></div>
+                          <div><span className="text-muted-foreground">Avg Quantity: </span><span className="font-medium text-gray-900 dark:text-white">{explanation.historical_context.avg_quantity} units</span></div>
+                          <div><span className="text-muted-foreground">Total Analyzed: </span><span className="font-medium text-gray-900 dark:text-white">{explanation.historical_context.total_transactions_analyzed} txns</span></div>
+                          <div><span className="text-muted-foreground">Peak Hours: </span><span className="font-medium text-gray-900 dark:text-white">{explanation.historical_context.peak_hours.map(h => `${h}:00`).join(", ") || "N/A"}</span></div>
                         </div>
                       </div>
                     )}
@@ -359,8 +359,8 @@ function DetailItem({ icon, label, value }: { icon: React.ReactNode; label: stri
     <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
       <div className="text-muted-foreground">{icon}</div>
       <div>
-        <p className="text-[10px] text-muted-foreground uppercase">{label}</p>
-        <p className="text-sm text-foreground font-medium">{value}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-sm font-semibold text-gray-900 dark:text-white">{value}</p>
       </div>
     </div>
   );

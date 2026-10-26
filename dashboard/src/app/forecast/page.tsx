@@ -106,7 +106,7 @@ export default function ForecastPage() {
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Demand Forecast</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Demand Forecast</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Predicted daily demand for each Ube product variation
           </p>

@@ -115,7 +115,7 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Generated Reports</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Generated Reports</h1>
           <p className="text-sm text-muted-foreground mt-1">
             AI-generated analytical reports with charts and explanations
           </p>
@@ -206,12 +206,12 @@ export default function ReportsPage() {
                 <CardTitle>AI Analysis Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
-                <p><strong className="text-foreground">Model Confidence:</strong> {forecastInsights.data.model_baseline}</p>
-                <p><strong className="text-foreground">Demand Drivers:</strong> {forecastInsights.data.demand_drivers}</p>
-                <p><strong className="text-foreground">Stockout Risk:</strong> {forecastInsights.data.stockout_risk}</p>
-                <p><strong className="text-foreground">Safety Stock:</strong> {forecastInsights.data.safety_stock}</p>
+                <p><strong className="text-gray-900 dark:text-white">Model Confidence:</strong> {forecastInsights.data.model_baseline}</p>
+                <p><strong className="text-gray-900 dark:text-white">Demand Drivers:</strong> {forecastInsights.data.demand_drivers}</p>
+                <p><strong className="text-gray-900 dark:text-white">Stockout Risk:</strong> {forecastInsights.data.stockout_risk}</p>
+                <p><strong className="text-gray-900 dark:text-white">Safety Stock:</strong> {forecastInsights.data.safety_stock}</p>
                 <div className="flex items-center gap-2">
-                  <strong className="text-foreground">Velocity Class:</strong>
+                  <strong className="text-gray-900 dark:text-white">Velocity Class:</strong>
                   <Badge
                     variant={
                       forecastInsights.data.velocity_class.includes("Fast") ? "success" :
@@ -366,7 +366,7 @@ function MetricCard({ label, value, sublabel }: { label: string; value: string; 
   return (
     <Card>
       <CardContent className="pt-6">
-        <p className="text-[10px] text-muted-foreground uppercase font-medium">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
         <p className="text-xl font-bold text-foreground mt-1">{value}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{sublabel}</p>
       </CardContent>
@@ -391,7 +391,7 @@ function SummaryStat({ label, value, tone }: { label: string; value: number; ton
   const color = tone === "destructive" ? "text-destructive" : tone === "success" ? "text-success" : "text-foreground";
   return (
     <div className="bg-muted/50 rounded-xl p-4">
-      <p className="text-[10px] text-muted-foreground uppercase">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
       <p className={`text-xl font-bold ${color}`}>{value}</p>
     </div>
   );

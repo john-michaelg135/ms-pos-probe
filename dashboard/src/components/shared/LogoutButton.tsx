@@ -22,7 +22,7 @@ export function LogoutButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-auto w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-input bg-surface py-2.5 text-sm font-medium leading-[normal] text-foreground transition-colors outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&_svg]:size-4 [&_svg]:shrink-0"
+        className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:shrink-0"
       >
         <LogOut aria-hidden="true" />
         Log out

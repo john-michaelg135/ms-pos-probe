@@ -56,7 +56,7 @@ function OwnerDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Welcome back{user ? `, ${user.displayName}` : ""}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -117,7 +117,7 @@ function OwnerDashboard() {
                     return (
                       <div key={loc.location_name} className="flex items-center gap-2 text-xs">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                        <span className="text-foreground flex-1 truncate">{loc.location_name}</span>
+                        <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{loc.location_name}</span>
                         <span className="text-muted-foreground font-medium">{pct}%</span>
                       </div>
                     );
@@ -146,7 +146,7 @@ function OwnerDashboard() {
                   return (
                     <div key={`${p.product_name}-${p.variation_name}`}>
                       <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="text-foreground">{p.product_name} {p.variation_name}</span>
+                        <span className="text-gray-700 dark:text-gray-300">{p.product_name} {p.variation_name}</span>
                         <span className="text-muted-foreground font-medium">{p.total_quantity} units</span>
                       </div>
                       <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
@@ -170,7 +170,7 @@ function OwnerDashboard() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
               <div>
-                <p className="text-xs text-muted-foreground uppercase">Unreviewed Alerts</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Unreviewed Alerts</p>
                 <p className="text-2xl font-bold text-foreground mt-1">{alertCount}</p>
               </div>
               <div className={`w-12 h-12 rounded-full flex items-center justify-center ${alertCount === 0 ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
@@ -246,7 +246,7 @@ function ManagerDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">System overview and key metrics at a glance</p>
       </div>
 
@@ -275,7 +275,7 @@ function ManagerDashboard() {
             </Button>
           </div>
           {syncResult && (
-            <div className="mt-3 px-4 py-2.5 rounded-xl bg-muted/50 text-sm text-foreground">
+            <div className="mt-3 px-4 py-2.5 rounded-xl bg-muted/50 text-sm text-gray-700 dark:text-gray-300">
               {syncResult}
             </div>
           )}
@@ -311,7 +311,7 @@ function StatusItem({ label, isOnline, isLoading }: { label: string; isOnline: b
   return (
     <div className="flex items-center gap-3 px-4 py-3 bg-muted/50 rounded-xl">
       {isOnline ? <CircleCheck className="w-4 h-4 text-success" /> : <CircleX className="w-4 h-4 text-destructive" />}
-      <span className="text-sm text-foreground">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
       <span className={`ml-auto text-sm font-medium ${isOnline ? "text-success" : "text-destructive"}`}>
         {isOnline ? "Online" : "Offline"}
       </span>

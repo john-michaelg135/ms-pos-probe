@@ -66,7 +66,7 @@ export default function QuotaPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Restocking Quota</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Restocking Quota</h1>
           <p className="text-sm text-muted-foreground mt-1">AI-recommended daily restocking quantities</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -118,19 +118,19 @@ export default function QuotaPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground uppercase font-medium">Ube Halaya Total</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Ube Halaya Total</p>
             <p className="text-xl font-bold text-foreground mt-1">{productTotals.halaya} units</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-xs text-muted-foreground uppercase font-medium">Ube Jam Total</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Ube Jam Total</p>
             <p className="text-xl font-bold text-foreground mt-1">{productTotals.jam} units</p>
           </CardContent>
         </Card>
         <Card className="border-brand-500/40">
           <CardContent className="pt-6">
-            <p className="text-xs text-brand-500 uppercase font-medium">Combined Total</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-500">Combined Total</p>
             <p className="text-xl font-bold text-brand-500 mt-1">{productTotals.all} units</p>
           </CardContent>
         </Card>
@@ -159,7 +159,7 @@ export default function QuotaPage() {
                 <TableBody>
                   {quotaData.map((row) => (
                     <TableRow key={row.variation_id}>
-                      <TableCell className="font-medium text-foreground">{row.product_name}</TableCell>
+                      <TableCell className="font-semibold text-gray-900 dark:text-white">{row.product_name}</TableCell>
                       <TableCell className="text-muted-foreground">{row.variation_name}</TableCell>
                       <TableCell className="text-right">{row.predicted_quantity} units</TableCell>
                       <TableCell className="text-right text-muted-foreground">{row.lower_bound} units</TableCell>

@@ -174,10 +174,10 @@
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: #fafafa;
-  --sidebar-foreground: #18181b;
+  --sidebar-foreground: #3f3f46;
   --sidebar-primary: #5b2a86;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f4f5;
+  --sidebar-accent: #efeff1;
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #ebebeb;
   --sidebar-ring: oklch(0.708 0 0);

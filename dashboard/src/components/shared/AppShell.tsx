@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Moon, PanelLeft, Sun } from "lucide-react";
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -28,8 +27,8 @@ import { UserCard } from "./UserCard";
 
 const NO_SHELL_ROUTES = ["/login", "/signin"];
 
-// Same width as the Enterprise Portal sidebar (296px), so the systems feel like one product.
-const SIDEBAR_STYLE = { "--sidebar-width": "18.5rem" } as CSSProperties;
+// Same width as the POS sidebar (288px), so switching between the systems doesn't shift anything.
+const SIDEBAR_STYLE = { "--sidebar-width": "18rem" } as CSSProperties;
 
 const ROLE_NAMES: Record<string, string> = { owner: "Owner", manager: "Manager" };
 
@@ -50,36 +49,41 @@ function Navigation() {
 
   return (
     <>
-      <SidebarContent className="px-5 py-6">
-        {sections.map(({ label: sectionLabel, destinations }, index) => (
-          <SidebarGroup className="p-0" key={sectionLabel ?? index}>
-            {sectionLabel ? (
-              <SidebarGroupLabel className="mt-1.5 mb-1 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-nav-section">
-                {sectionLabel}
-              </SidebarGroupLabel>
-            ) : null}
-            <SidebarMenu className="gap-1">
-              {destinations.map(({ href, icon: Icon, label }) => (
-                <SidebarMenuItem key={href}>
-                  <SidebarMenuButton
-                    asChild
-                    className="h-auto gap-2 rounded-lg px-2.5 py-[10px] text-[15px] leading-[normal] font-normal text-nav-foreground data-[active=true]:font-semibold data-[active=true]:text-foreground [&>svg]:size-4"
-                    isActive={pathname === href}
-                    onClick={() => setOpenMobile(false)}
-                    tooltip={label}
+      {/* Spacing and type copied from the POS sidebar so items line up pixel for pixel. */}
+      <SidebarContent className="px-3 py-4">
+        <SidebarGroup className="p-0">
+          <SidebarMenu className="gap-0.5">
+            {sections.map(({ label: sectionLabel, destinations }, index) => (
+              <Fragment key={sectionLabel ?? index}>
+                {sectionLabel ? (
+                  <li
+                    aria-hidden
+                    className={`list-none pb-1.5 pl-2.5 text-[11px] font-semibold tracking-wide text-zinc-400 ${index === 0 ? "pt-1" : "pt-[18px]"}`}
                   >
-                    <Link aria-current={pathname === href ? "page" : undefined} href={href}>
-                      <Icon aria-hidden="true" />
-                      <span>{label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        ))}
+                    {sectionLabel}
+                  </li>
+                ) : null}
+                {destinations.map(({ href, icon: Icon, label }) => (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton
+                      asChild
+                      className="h-auto w-full gap-3 rounded-lg px-2.5 py-[9px] text-[15px] font-medium text-sidebar-foreground transition-colors data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground"
+                      isActive={pathname === href}
+                      onClick={() => setOpenMobile(false)}
+                    >
+                      <Link aria-current={pathname === href ? "page" : undefined} href={href}>
+                        <Icon aria-hidden="true" className="size-[18px] shrink-0" />
+                        <span>{label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </Fragment>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="gap-2.5 border-t border-border px-4 py-3.5">
+      <SidebarFooter className="gap-3 border-t border-sidebar-border py-3.5 pl-4 pr-3">
         {session ? (
           <UserCard
             user={{
@@ -109,7 +113,7 @@ function ShellHeader() {
   }, [openMobile]);
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center border-b border-border bg-surface px-6">
+    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center border-b border-sidebar-border bg-background px-4 sm:px-6">
       <button
         aria-expanded={openMobile}
         aria-label={openMobile ? "Close navigation" : "Open navigation"}
@@ -118,7 +122,7 @@ function ShellHeader() {
         ref={mobileTriggerRef}
         type="button"
       >
-        <Menu aria-hidden="true" />
+        <Menu aria-hidden="true" className="size-4!" />
       </button>
       <button
         aria-expanded={state === "expanded"}
@@ -127,7 +131,7 @@ function ShellHeader() {
         onClick={toggleSidebar}
         type="button"
       >
-        <PanelLeft aria-hidden="true" />
+        <PanelLeft aria-hidden="true" className="size-4!" />
       </button>
       <button
         aria-label={mounted && theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -151,19 +155,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SidebarProvider style={SIDEBAR_STYLE}>
+    // The window never scrolls; only <main> does, so its scrollbar sits under the header.
+    <SidebarProvider className="h-svh overflow-hidden print:h-auto print:overflow-visible" style={SIDEBAR_STYLE}>
       <Sidebar collapsible="offcanvas">
-        <SidebarHeader className="border-b border-border py-[18px] pl-3.5 pr-2.5">
+        <SidebarHeader className="h-24 justify-center border-b border-sidebar-border py-0 pl-3.5 pr-2.5">
           <BrandLockup />
         </SidebarHeader>
         <Navigation />
       </Sidebar>
 
-      <div className="flex min-h-svh min-w-0 flex-1 flex-col bg-surface">
+      <div className="flex h-svh min-w-0 flex-1 flex-col bg-surface print:h-auto">
         <ShellHeader />
         <main
           key={pathname}
-          className="relative w-full flex-1 overflow-x-hidden bg-background p-4 sm:p-6 animate-page-in"
+          // Stable gutter: pages keep the same width whether or not they are long enough to scroll.
+          className="relative min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden bg-background px-6 py-8 [scrollbar-gutter:stable] md:px-8 animate-page-in print:overflow-visible"
         >
           {children}
         </main>

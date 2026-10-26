@@ -27,7 +27,7 @@ export default function AccuracyPage() {
     <TooltipProvider delayDuration={100}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Model Accuracy Report</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Model Accuracy Report</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Mathematical proof of model accuracy for academic defense verification
           </p>
@@ -79,7 +79,7 @@ export default function AccuracyPage() {
                       <TableBody>
                         {backtest.data.metrics.map((m, i) => (
                           <TableRow key={i}>
-                            <TableCell className="text-foreground">{m.variation_name}</TableCell>
+                            <TableCell className="font-semibold text-gray-900 dark:text-white">{m.variation_name}</TableCell>
                             <TableCell className="text-right text-muted-foreground">{m.mape}%</TableCell>
                             <TableCell className="text-right text-muted-foreground">{m.mae}</TableCell>
                             <TableCell className="text-right text-muted-foreground">{m.r_squared}</TableCell>
@@ -156,7 +156,7 @@ function MetricCard({ label, value, sublabel, pass, tooltip }: { label: string; 
   return (
     <div className="bg-muted/50 rounded-xl p-4">
       <div className="flex items-start justify-between">
-        <p className="text-[10px] text-muted-foreground uppercase font-medium mb-1">{label}</p>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
         {tooltip && <InfoTooltip title={label} badge={value} text={tooltip} />}
       </div>
       <div className="flex items-center gap-2">

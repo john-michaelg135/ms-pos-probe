@@ -35,7 +35,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Sales Analytics</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Sales Analytics</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Revenue trends, sales by location, product, and channel
         </p>
@@ -135,7 +135,7 @@ function RevenueChart({ groupBy, dateFrom, dateTo }: { groupBy: "day" | "week" |
   return (
     <div>
       <div className="mb-4">
-        <p className="text-xs text-muted-foreground uppercase font-medium">Total Revenue</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Revenue</p>
         <p className="text-2xl font-bold text-foreground">
           ₱{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </p>
@@ -195,7 +195,7 @@ function LocationChart({ dateFrom, dateTo }: { dateFrom: string; dateTo: string 
         {data?.map((item, i) => (
           <div key={item.location_name} className="flex items-center gap-3 text-sm">
             <div className="w-2.5 h-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-            <span className="text-foreground flex-1">{item.location_name}</span>
+            <span className="flex-1 text-gray-700 dark:text-gray-300">{item.location_name}</span>
             <span className="text-muted-foreground">₱{item.total_revenue.toLocaleString()}</span>
             <span className="text-muted-foreground w-12 text-right">
               {((item.total_revenue / totalRevenue) * 100).toFixed(1)}%
@@ -290,7 +290,7 @@ function ChannelChart({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }
             <div key={item.order_source} className="flex items-center gap-4">
               <div className="w-3 h-3 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
               <div>
-                <p className="text-sm font-medium text-foreground">{item.order_source}</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{item.order_source}</p>
                 <p className="text-sm text-muted-foreground">
                   ₱{item.total_revenue.toLocaleString()} • {((item.total_revenue / totalRevenue) * 100).toFixed(1)}%
                 </p>
