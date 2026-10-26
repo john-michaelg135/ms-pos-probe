@@ -32,3 +32,22 @@ export function getVariationSortIndex(fullName?: string, variationId?: number): 
   }
   return 999;
 }
+
+
+/**
+ * The canonical index of a variation from any of the names the data uses, e.g. "Ube Halaya Smooth 250g"
+ * from the forecast or "Ube Halaya Smooth UBH-SM-250|Pouch|250g" from sales. 999 when it can't tell.
+ */
+export function variationIndexFromName(name: string): number {
+  const exact = getVariationSortIndex(name);
+  if (exact !== 999) return exact;
+
+  const text = name.toLowerCase();
+  const size = text.match(/(\d+)\s*g(?!.*\d+\s*g)/)?.[1];
+  if (!size) return 999;
+
+  const product = text.includes("jam") ? "Ube Jam" : "Ube Halaya";
+  const style = text.includes("tidbit") ? "Tidbits" : "Smooth";
+
+  return getVariationSortIndex(`${product} ${style} ${size}g`);
+}

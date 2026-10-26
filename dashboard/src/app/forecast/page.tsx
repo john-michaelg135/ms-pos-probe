@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
 import {
-  CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
+  variationColor, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
 } from "@/lib/chart-theme";
 import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
@@ -180,13 +180,13 @@ export default function ForecastPage() {
                     labelFormatter={(label) => formatDate(String(label))}
                   />
                   <Legend content={() => null} />
-                  {variations.map((name, i) => (
+                  {variations.map((name) => (
                     <Area
                       key={name}
                       type="monotone"
                       dataKey={name}
-                      stroke={CHART_COLORS[i % CHART_COLORS.length]}
-                      fill={CHART_COLORS[i % CHART_COLORS.length]}
+                      stroke={variationColor(name)}
+                      fill={variationColor(name)}
                       fillOpacity={0.06}
                       strokeWidth={2}
                       dot={false}
@@ -196,9 +196,9 @@ export default function ForecastPage() {
               </ResponsiveContainer>
 
               <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 px-2">
-                {variations.map((name, i) => (
+                {variations.map((name) => (
                   <div key={name} className="flex items-center gap-1.5">
-                    <div className="w-3 h-[3px] rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <div className="w-3 h-[3px] rounded-full" style={{ background: variationColor(name) }} />
                     <span className="text-[10px] text-muted-foreground">{name}</span>
                   </div>
                 ))}

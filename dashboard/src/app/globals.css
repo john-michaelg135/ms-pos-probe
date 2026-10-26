@@ -673,3 +673,10 @@ body:is(.dark *) {
     animation: none;
   }
 }
+
+/* Clicking a chart focuses its SVG; don't draw the browser's black focus box around it. */
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-wrapper :focus:not(:focus-visible) {
+  outline: none;
+}

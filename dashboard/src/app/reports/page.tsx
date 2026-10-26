@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
 import {
-  CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
+  variationColor, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
 } from "@/lib/chart-theme";
 import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
@@ -188,15 +188,15 @@ export default function ReportsPage() {
                     <XAxis dataKey="date" tick={AXIS_TICK} tickFormatter={formatDateShort} />
                     <YAxis tick={AXIS_TICK} />
                     <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} labelFormatter={(l) => formatDate(String(l))} />
-                    {forecastVariations.map((name, i) => (
-                      <Area key={name} type="monotone" dataKey={name} stroke={CHART_COLORS[i % CHART_COLORS.length]} fill={CHART_COLORS[i % CHART_COLORS.length]} fillOpacity={0.05} strokeWidth={2} dot={false} />
+                    {forecastVariations.map((name) => (
+                      <Area key={name} type="monotone" dataKey={name} stroke={variationColor(name)} fill={variationColor(name)} fillOpacity={0.05} strokeWidth={2} dot={false} />
                     ))}
                   </AreaChart>
                 </ResponsiveContainer>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-                  {forecastVariations.map((name, i) => (
+                  {forecastVariations.map((name) => (
                     <div key={name} className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-[2px] rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      <div className="w-2.5 h-[2px] rounded-full" style={{ background: variationColor(name) }} />
                       <span className="text-[10px] text-muted-foreground">{name}</span>
                     </div>
                   ))}
@@ -238,13 +238,13 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={Math.max(200, salesByProduct.data.length * 45)}>
-                  <BarChart data={salesByProduct.data.map((d) => { const name = `${d.product_name} ${d.variation_name}`; return { name, quantity: d.total_quantity, color: CHART_COLORS[getVariationSortIndex(name) % CHART_COLORS.length] }; })} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
+                  <BarChart data={salesByProduct.data.map((d) => { const name = `${d.product_name} ${d.variation_name}`; return { name, quantity: d.total_quantity, color: variationColor(name) }; })} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
                     <XAxis type="number" tick={AXIS_TICK} />
                     <YAxis type="category" dataKey="name" tick={AXIS_TICK} width={180} />
                     <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} />
                     <Bar dataKey="quantity" radius={[0, 4, 4, 0]}>
-                      {salesByProduct.data.map((d) => { const name = `${d.product_name} ${d.variation_name}`; return <Cell key={name} fill={CHART_COLORS[getVariationSortIndex(name) % CHART_COLORS.length]} />; })}
+                      {salesByProduct.data.map((d) => { const name = `${d.product_name} ${d.variation_name}`; return <Cell key={name} fill={variationColor(name)} />; })}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

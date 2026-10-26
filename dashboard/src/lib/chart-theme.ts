@@ -1,3 +1,5 @@
+import { variationIndexFromName } from "@/lib/variation-order";
+
 /**
  * Shared Recharts styling helpers so charts follow the shadcn theme tokens
  * instead of hardcoded hex values. Colors reference CSS variables defined in
@@ -39,3 +41,10 @@ export const tooltipItemStyle = {
 } as const;
 
 export const brandCursor = { fill: "color-mix(in oklab, var(--color-brand-500) 8%, transparent)" };
+
+
+/** One fixed colour per variation, so a product looks the same in every chart. */
+export function variationColor(name: string): string {
+  const index = variationIndexFromName(name);
+  return CHART_COLORS[(index === 999 ? 0 : index) % CHART_COLORS.length];
+}
