@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Moon, PanelLeft, Sun } from "lucide-react";
+import { Moon, PanelLeft, Sun } from "lucide-react";
 import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import {
@@ -101,34 +101,30 @@ function Navigation() {
 }
 
 function ShellHeader() {
-  const { openMobile, state, toggleSidebar } = useSidebar();
+  const { isMobile, openMobile, state, toggleSidebar } = useSidebar();
   const { theme, mounted, toggleTheme } = useThemeStore();
-  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const wasDrawerOpen = useRef(false);
 
-  // Hand focus back to the menu button when the phone drawer closes.
+  // Hand focus back to the sidebar button when the phone drawer closes.
   useEffect(() => {
-    if (wasDrawerOpen.current && !openMobile) mobileTriggerRef.current?.focus();
+    if (wasDrawerOpen.current && !openMobile) triggerRef.current?.focus();
     wasDrawerOpen.current = openMobile;
   }, [openMobile]);
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center border-b border-sidebar-border bg-background px-4 sm:px-6">
+      {/* One sidebar button for every screen size: it collapses the sidebar, or opens the drawer on phones. */}
       <button
-        aria-expanded={openMobile}
-        aria-label={openMobile ? "Close navigation" : "Open navigation"}
-        className={`${HEADER_ICON_BUTTON} md:hidden`}
+        aria-expanded={isMobile ? openMobile : state === "expanded"}
+        aria-label={
+          isMobile
+            ? openMobile ? "Close navigation" : "Open navigation"
+            : state === "collapsed" ? "Expand sidebar" : "Collapse sidebar"
+        }
+        className={HEADER_ICON_BUTTON}
         onClick={toggleSidebar}
-        ref={mobileTriggerRef}
-        type="button"
-      >
-        <Menu aria-hidden="true" className="size-4!" />
-      </button>
-      <button
-        aria-expanded={state === "expanded"}
-        aria-label={state === "collapsed" ? "Expand sidebar" : "Collapse sidebar"}
-        className={`${HEADER_ICON_BUTTON} hidden md:inline-flex`}
-        onClick={toggleSidebar}
+        ref={triggerRef}
         type="button"
       >
         <PanelLeft aria-hidden="true" className="size-4!" />
