@@ -44,7 +44,7 @@ export function LogoutButton() {
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <DialogPrimitive.Title className="text-lg font-semibold text-foreground">Log out?</DialogPrimitive.Title>
               <DialogPrimitive.Description className="text-[13px] text-on-surface-variant">
-                You will be signed out of POS-PROBE.
+                You will be signed out of POS-PROBE and returned to the POS.
               </DialogPrimitive.Description>
             </div>
             <DialogPrimitive.Close

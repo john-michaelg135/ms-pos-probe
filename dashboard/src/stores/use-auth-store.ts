@@ -1,87 +1,61 @@
 import { create } from "zustand";
+import { canAccessRoute, ROLE_ACCESS, type UserRole } from "@/lib/auth/roles";
 
-export type UserRole = "owner" | "manager";
+export type { UserRole };
 
 interface AuthUser {
   username: string;
   role: UserRole;
   displayName: string;
+  email: string;
+  /** Their POS role, e.g. "Super Admin" or "POS Manager". */
+  posRole: string;
 }
 
 interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
-  hydrate: () => void;
+  /** Reads the session the POS "Open Probe" button started. */
+  hydrate: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
-// Demo credentials
-const DEMO_USERS: Record<string, { password: string; role: UserRole; displayName: string }> = {
-  owner: { password: "12345", role: "owner", displayName: "Business Owner" },
-  manager: { password: "12345", role: "manager", displayName: "Commissary Manager" },
-};
+/** The POS, where people sign in and where they return after logging out. */
+export const POS_URL = (process.env.NEXT_PUBLIC_POS_URL ?? "https://localhost:3002").replace(/\/$/, "");
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
 
-  login: (username: string, password: string) => {
-    const userConfig = DEMO_USERS[username.toLowerCase()];
-    if (!userConfig || userConfig.password !== password) {
-      return false;
-    }
+  hydrate: async () => {
+    try {
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      const body = response.ok ? await response.json() : null;
+      const u = body?.user;
 
-    const user: AuthUser = {
-      username: username.toLowerCase(),
-      role: userConfig.role,
-      displayName: userConfig.displayName,
-    };
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("pos-probe-auth", JSON.stringify(user));
-      // Activate the api.ts request interceptor which reads localStorage["access_token"].
-      // Demo flow: use a namespaced pseudo-token until real gateway auth is wired.
-      localStorage.setItem("access_token", `demo.${user.username}.${user.role}`);
-    }
-
-    set({ user, isAuthenticated: true });
-    return true;
-  },
-
-  logout: () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("pos-probe-auth");
-      localStorage.removeItem("access_token");
-    }
-    set({ user: null, isAuthenticated: false });
-  },
-
-  hydrate: () => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("pos-probe-auth");
-      if (stored) {
-        try {
-          const user = JSON.parse(stored) as AuthUser;
-          localStorage.setItem("access_token", `demo.${user.username}.${user.role}`);
-          set({ user, isAuthenticated: true });
-        } catch {
-          localStorage.removeItem("pos-probe-auth");
-          localStorage.removeItem("access_token");
-        }
+      if (!u) {
+        localStorage.removeItem("access_token");
+        set({ user: null, isAuthenticated: false });
+        return;
       }
+
+      // Activates the api.ts request interceptor; the backend doesn't verify it yet.
+      localStorage.setItem("access_token", `probe.${u.username}.${u.role}`);
+      set({
+        user: { username: u.username, role: u.role, displayName: u.name, email: u.email, posRole: u.posRole },
+        isAuthenticated: true,
+      });
+    } catch {
+      set({ user: null, isAuthenticated: false });
     }
+  },
+
+  logout: async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    localStorage.removeItem("access_token");
+    set({ user: null, isAuthenticated: false });
+    window.location.href = `${POS_URL}/sales-processing`;
   },
 }));
 
-// Role-based route access
-export const ROLE_ACCESS: Record<UserRole, string[]> = {
-  owner: ["/", "/reports"],
-  manager: ["/", "/forecast", "/forecast/quota", "/alerts", "/reports", "/accuracy"],
-};
-
-export function canAccessRoute(role: UserRole | undefined, path: string): boolean {
-  if (!role) return false;
-  const allowed = ROLE_ACCESS[role];
-  return allowed.some((route) => path === route || (route !== "/" && path.startsWith(route)));
-}
+export { canAccessRoute, ROLE_ACCESS };

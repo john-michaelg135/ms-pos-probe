@@ -1,14 +1,8 @@
 "use client";
 
 /**
- * Auth session compatibility layer.
- *
- * br-trellis (web-crms) consumes auth via NextAuth's `useSession()` / `signOut()`.
- * POS-PROBE uses a client-side zustand auth store (demo credentials + role access).
- *
- * This shim exposes a NextAuth-shaped `useSession()` and `signOut()` backed by the
- * existing `useAuthStore`, so the ported br-trellis Sidebar / Header / ProfileFooter
- * components work unchanged while the existing demo auth flow keeps functioning.
+ * Auth session compatibility layer: a NextAuth-shaped `useSession()` / `signOut()` over
+ * `useAuthStore`, which holds the session the POS "Open Probe" button started.
  */
 
 import { useAuthStore, canAccessRoute, type UserRole } from "@/stores/use-auth-store";
@@ -20,6 +14,8 @@ export interface AppSession {
     id: string;
   };
   role: string;
+  /** Their POS role, e.g. "Super Admin" or "POS Manager". */
+  posRole: string;
   isSuperUser: boolean;
   permissions: Record<string, unknown>;
 }
@@ -40,10 +36,11 @@ export function useSession(): UseSessionResult {
     data: {
       user: {
         name: user.displayName,
-        email: `${user.username}@pos-probe.local`,
+        email: user.email,
         id: user.username,
       },
       role: user.role,
+      posRole: user.posRole,
       // Owners get full visibility (treated like a super user for nav filtering).
       isSuperUser: user.role === "owner",
       permissions: {},
@@ -53,7 +50,7 @@ export function useSession(): UseSessionResult {
 }
 
 export function signOut() {
-  useAuthStore.getState().logout();
+  return useAuthStore.getState().logout();
 }
 
 export { canAccessRoute };

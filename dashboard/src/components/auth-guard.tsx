@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore, canAccessRoute } from "@/stores/use-auth-store";
 
-const AUTH_ROUTES = ["/login", "/signin"];
+const AUTH_ROUTES = ["/signin"];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -12,11 +12,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, hydrate } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
 
-  // Hydrate auth state from localStorage on mount
+  // Read the session the POS "Open Probe" button started (the proxy has already required one).
   useEffect(() => {
-    hydrate();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration gate to avoid SSR flash
-    setHydrated(true);
+    hydrate().finally(() => setHydrated(true));
   }, [hydrate]);
 
   // Redirect logic
@@ -25,9 +23,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
-    // Not authenticated and not on an auth page → redirect to login
+    // Not authenticated and not on an auth page → explain how to sign in
     if (!isAuthenticated && !isAuthRoute) {
-      router.replace("/login");
+      router.replace("/signin");
       return;
     }
 

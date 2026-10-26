@@ -1,28 +1,39 @@
-"use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Radar } from "lucide-react";
+import { posUrl } from "@/lib/auth/token";
 
 /**
- * br-trellis-style sign-in entry point.
- *
- * In br-trellis this redirects to the OIDC provider. POS-PROBE uses a local
- * credential form, so `/signin` simply forwards to `/login`.
+ * POS-PROBE has no sign-in form of its own: the owner and POS Managers open it with the
+ * "Open Probe" button in the POS's Sales Processing page.
  */
-export default function SignInPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace("/login");
-  }, [router]);
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ reason?: string }> }) {
+  const { reason } = await searchParams;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-sm text-muted-foreground">
-        <Loader2 className="w-6 h-6 animate-spin" />
-        <p className="text-sm">Redirecting to sign in…</p>
+    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+        <Image
+          alt="Bren Raphael's"
+          className="mx-auto size-14 rounded-xl"
+          height={56}
+          src="/images/bren-raphaels-logo.svg"
+          unoptimized
+          width={56}
+        />
+        <h1 className="mt-5 text-2xl font-bold tracking-tight text-foreground">Open POS-PROBE from the POS</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {reason === "expired"
+            ? "That link has expired. Open the probe again from the POS."
+            : "Sign in to the POS, then use the Open Probe button on the Sales Processing page. It's available to the owner and POS Managers."}
+        </p>
+        <a
+          className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          href={`${posUrl()}/sales-processing`}
+        >
+          <Radar aria-hidden className="size-4" />
+          Go to the POS
+        </a>
       </div>
-    </div>
+    </main>
   );
 }

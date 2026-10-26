@@ -25,7 +25,7 @@ import { LogoutButton } from "./LogoutButton";
 import { SIDEBAR_SECTIONS } from "./SidebarNav";
 import { UserCard } from "./UserCard";
 
-const NO_SHELL_ROUTES = ["/login", "/signin"];
+const NO_SHELL_ROUTES = ["/signin"];
 
 // Same width as the POS sidebar (288px), so switching between the systems doesn't shift anything.
 const SIDEBAR_STYLE = { "--sidebar-width": "18rem" } as CSSProperties;
@@ -90,7 +90,7 @@ function Navigation() {
               name: session.user.name,
               username: session.user.id,
               email: session.user.email,
-              roleName: ROLE_NAMES[session.role] ?? session.role,
+              roleName: session.posRole || (ROLE_NAMES[session.role] ?? session.role),
             }}
           />
         ) : null}
