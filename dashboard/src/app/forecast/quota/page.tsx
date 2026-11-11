@@ -24,12 +24,24 @@ const PRODUCT_FILTERS = [
   { label: "Ube Jam", value: "Ube Jam" },
 ];
 
+/** The quota is forecast for tomorrow through the next 30 days. */
+const QUOTA_DAYS = 30;
+
+const isoDate = (offsetDays: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 export default function QuotaPage() {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
-  });
+  // Only dates the forecast covers can be picked: past days have no quota, and nothing is forecast beyond 30 days.
+  const minDate = isoDate(1);
+  const maxDate = isoDate(QUOTA_DAYS);
+  const [selectedDate, setSelectedDate] = useState(() => isoDate(1));
+  const chooseDate = (value: string) => {
+    if (!value) return;
+    setSelectedDate(value < minDate ? minDate : value > maxDate ? maxDate : value);
+  };
   const [productFilter, setProductFilter] = useState("all");
   // A manager's quota is fixed to their branch; the owner picks any location.
   const lockedLocation = useLockedLocation();
@@ -105,7 +117,9 @@ export default function QuotaPage() {
             <Input
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              min={minDate}
+              max={maxDate}
+              onChange={(e) => chooseDate(e.target.value)}
               className="h-9 w-auto"
             />
           </div>
@@ -191,7 +205,7 @@ export default function QuotaPage() {
           ) : (
             <div className="text-center py-12">
               <p className="text-sm text-muted-foreground">No quota data available for {formatDate(selectedDate)}.</p>
-              <p className="text-xs text-muted-foreground mt-1">Select a date within the next 30 days.</p>
+              <p className="text-xs text-muted-foreground mt-1">The quota covers {formatDate(minDate)} to {formatDate(maxDate)}.</p>
             </div>
           )}
         </CardContent>
