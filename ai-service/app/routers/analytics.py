@@ -48,7 +48,7 @@ async def get_revenue(
     query = f"""
         SELECT
             {period_expr} AS period,
-            ROUND(SUM(total_amount - discount_amount), 2) AS total_revenue,
+            ROUND(SUM(total_amount), 2) AS total_revenue,
             COUNT(DISTINCT order_id) AS total_orders,
             SUM(quantity) AS total_quantity
         FROM sales_transactions
@@ -83,7 +83,7 @@ async def get_sales_by_location(
     query = """
         SELECT
             location_name,
-            ROUND(SUM(total_amount - discount_amount), 2) AS total_revenue,
+            ROUND(SUM(total_amount), 2) AS total_revenue,
             SUM(quantity) AS total_quantity
         FROM sales_transactions
         WHERE transaction_date >= ?
@@ -124,7 +124,7 @@ async def get_sales_by_product(
         SELECT
             product_name,
             variation_name,
-            ROUND(SUM(total_amount - discount_amount), 2) AS total_revenue,
+            ROUND(SUM(total_amount), 2) AS total_revenue,
             SUM(quantity) AS total_quantity
         FROM sales_transactions
         WHERE transaction_date >= ?
@@ -158,7 +158,7 @@ async def get_sales_by_channel(
     query = """
         SELECT
             order_source,
-            ROUND(SUM(total_amount - discount_amount), 2) AS total_revenue,
+            ROUND(SUM(total_amount), 2) AS total_revenue,
             SUM(quantity) AS total_quantity
         FROM sales_transactions
         WHERE transaction_date >= ?

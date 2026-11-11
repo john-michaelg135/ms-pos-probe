@@ -398,8 +398,9 @@ def _location_ratio(bundle: dict, var_id: int, location_name: str) -> tuple[floa
     shares = bundle["location_shares"]
     if location_name in shares:
         return shares[location_name].get(var_id, 0.0), "recent sales share"
-    # A branch with no sales in the share window: an even split until it has history.
-    return 1.0 / bundle["active_branch_count"], "even split (no recent sales at this branch)"
+    # No walk-in, bazaar or online sales here in the share window: forecast nothing rather than
+    # inventing a share, so the branch forecasts always add up to the all-branch forecast.
+    return 0.0, f"no sales at this branch in the last {SHARE_DAYS} days"
 
 
 def forecast(bundle: dict, days: int, variation_id: int | None = None, location_name: str | None = None) -> list[dict]:

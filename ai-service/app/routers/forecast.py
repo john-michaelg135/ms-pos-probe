@@ -53,9 +53,10 @@ async def get_forecast_locations(token: dict = Depends(verify_token)):
 async def get_forecast_insights(
     variation_id: int | None = Query(default=None),
     days: int = Query(default=7, ge=1, le=30),
+    location_name: str | None = Query(default=None),
     token: dict = Depends(verify_token),
 ):
-    """Plain-language summary of the forecast for one variation or all of them."""
+    """Plain-language summary of the forecast for one variation or all of them, optionally for one branch."""
     bundle = load_bundle()
     if bundle is None or not bundle["variations"]:
         return {
@@ -72,8 +73,14 @@ async def get_forecast_insights(
     scope_ids = [variation_id] if variation_id in variations else sorted(variations)
     single = len(scope_ids) == 1 and variation_id is not None
     scope = f"{variations[scope_ids[0]]['product_name']} {variations[scope_ids[0]]['variation_name']}" if single else "All variations"
+    branch = location_name or None
+    if branch:
+        scope = f"{scope} at {branch}"
 
-    items = [i for i in forecast(bundle, days) if i["variation_id"] in scope_ids]
+    # A branch's figures are its recent share of each variation's all-branch demand.
+    all_items = forecast(bundle, days, location_name=branch)
+    ratio = {i["variation_id"]: (i.get("location_ratio", 1.0) if branch else 1.0) for i in all_items}
+    items = [i for i in all_items if i["variation_id"] in scope_ids]
     # Unrounded expected units, so thin demand (0.3 a day) doesn't read as zero.
     by_date: dict[str, float] = {}
     for i in items:
@@ -84,9 +91,9 @@ async def get_forecast_insights(
 
     weekday = np.zeros(7)
     for vid in scope_ids:
-        weekday += np.array([variations[vid]["weekday_avg"][d] for d in range(7)])
-    window_units = sum(variations[v]["units_share_window"] for v in scope_ids)
-    all_units = sum(v["units_share_window"] for v in variations.values()) or 1.0
+        weekday += np.array([variations[vid]["weekday_avg"][d] for d in range(7)]) * ratio.get(vid, 1.0)
+    window_units = sum(variations[v]["units_share_window"] * ratio.get(v, 1.0) for v in scope_ids)
+    all_units = sum(v["units_share_window"] * ratio.get(k, 1.0) for k, v in variations.items()) or 1.0
     share = window_units / all_units * 100
 
     methods = [variations[v]["method"] for v in scope_ids]
@@ -138,12 +145,18 @@ async def get_forecast_insights(
 
     per_day = window_units / SHARE_DAYS
     stockout_risk = (
-        f"{scope} accounted for {share:.0f}% of units sold in the last {SHARE_DAYS} days "
+        f"{scope} accounted for {share:.0f}% of {'the branch' if branch else 'all'} units sold in the last {SHARE_DAYS} days "
         f"({window_units:.0f} units, about {per_day:.1f} a day; institutional orders not included)."
         if single else
-        f"In the last {SHARE_DAYS} days all variations sold {window_units:.0f} units through walk-in, bazaar "
-        f"and online orders, about {per_day:.1f} a day. Institutional orders are booked ahead and not included."
+        f"In the last {SHARE_DAYS} days {'this branch' if branch else 'all branches'} sold {window_units:.0f} units "
+        f"through walk-in, bazaar and online orders, about {per_day:.1f} a day. "
+        f"Institutional orders are booked ahead and not included."
     )
+    if branch and not bundle["location_shares"].get(branch):
+        stockout_risk += (
+            " With no walk-in, bazaar or online sales here in that period, nothing is forecast for this branch "
+            "until it has its own sales history."
+        )
     safety_stock = (
         f"Producing the recommended {recommended} units over the next {days} days "
         f"({max(recommended - predicted, 0):g} above the expected {predicted:g}) should cover demand on "

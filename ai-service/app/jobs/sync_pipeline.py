@@ -29,7 +29,8 @@ WATERMARK_KEY = "pos_probe:last_sync_timestamp"
 
 # Bump when the synced row format changes; a new version re-syncs everything once.
 # v2: Philippine-time dates, only real sales (paid, part-paid or completed).
-SYNC_VERSION = "2"
+# v3: real Senior/PWD discount amounts; refunds valued at the price actually paid.
+SYNC_VERSION = "3"
 SYNC_VERSION_KEY = "pos_probe:sync_version"
 
 # A sale, as the POS counts one (same rule as the demand forecast and api-pos DashboardService).
@@ -84,7 +85,9 @@ def _fetch_batch(cursor, watermark: str, offset: int) -> list[dict]:
             END                                     AS discount_type,
             CASE
                 WHEN o."SeniorPwdId" IS NOT NULL AND o."SeniorPwdId" != ''
-                THEN ROUND(oi."Subtotal" * 0.20, 2)
+                -- The POS sells the line at price / 1.12 x 0.80 and stores that as Subtotal,
+                -- so the discount given is the regular price minus Subtotal = 0.40 x Subtotal.
+                THEN ROUND(oi."Subtotal" * 0.40, 2)
                 ELSE 0
             END                                     AS discount_amount,
             FALSE                                   AS is_refund,
@@ -119,11 +122,16 @@ def _fetch_batch(cursor, watermark: str, offset: int) -> list[dict]:
 
 def _reconcile(cursor) -> int:
     """
-    Remove analytics rows that no longer match a POS sale: orders later voided, cancelled or
-    rejected, refunds no longer approved, and rows with no POS order at all (old synthetic data).
+    Remove analytics rows that no longer match a POS sale line: orders later voided, cancelled
+    or rejected, refunds no longer approved, and rows with no POS line at all (old synthetic
+    "SYN-" rows, whose order numbers 1, 2, 3… overlap real ones, so lines are matched exactly).
     Skipped when the POS returns no sales, so a wrong or empty database can't wipe the analytics.
     """
-    cursor.execute(f'SELECT o."OrderId"::TEXT FROM "Orders" o WHERE {SALE_FILTER}')
+    cursor.execute(f'''
+        SELECT CONCAT(oi."ItemId", '-', o."OrderId")
+        FROM "Orders" o JOIN "OrderItems" oi ON oi."OrderId" = o."OrderId"
+        WHERE {SALE_FILTER}
+    ''')
     sale_ids = [r[0] for r in cursor.fetchall()]
     if not sale_ids:
         return 0
@@ -132,12 +140,13 @@ def _reconcile(cursor) -> int:
 
     conn = get_duckdb()
     before = conn.execute("SELECT COUNT(*) FROM sales_transactions").fetchone()[0]
-    conn.register("_sale_ids", pd.DataFrame({"order_id": sale_ids}))
-    conn.register("_refund_ids", pd.DataFrame({"transaction_id": refund_ids or ["__none__"]}))
+    # Plain object columns: DuckDB here can't read pandas' newer 'str' dtype (same as the upsert).
+    conn.register("_sale_ids", pd.DataFrame({"transaction_id": pd.Series(sale_ids, dtype="object")}))
+    conn.register("_refund_ids", pd.DataFrame({"transaction_id": pd.Series(refund_ids or ["__none__"], dtype="object")}))
     try:
         conn.execute("""
             DELETE FROM sales_transactions
-            WHERE (is_refund = FALSE AND order_id NOT IN (SELECT order_id FROM _sale_ids))
+            WHERE (is_refund = FALSE AND transaction_id NOT IN (SELECT transaction_id FROM _sale_ids))
                OR (is_refund = TRUE AND transaction_id NOT IN (SELECT transaction_id FROM _refund_ids))
         """)
     finally:
@@ -162,8 +171,8 @@ def _fetch_refund_batch(cursor, watermark: str, offset: int) -> list[dict]:
             pv."VariationId"                        AS variation_id,
             pv."VariationName"                      AS variation_name,
             rr."QuantityToReturn"                   AS quantity,
-            pp."Price"                              AS unit_price,
-            ROUND(rr."QuantityToReturn" * pp."Price", 2) AS total_amount,
+            oi."UnitPrice"                          AS unit_price,
+            ROUND(rr."QuantityToReturn" * oi."UnitPrice", 2) AS total_amount,
             NULL                                    AS discount_type,
             0                                       AS discount_amount,
             TRUE                                    AS is_refund,
@@ -177,11 +186,12 @@ def _fetch_refund_batch(cursor, watermark: str, offset: int) -> list[dict]:
         INNER JOIN "ProductVariations" pv ON pv."VariationId" = rr."VariationId"
         INNER JOIN "Products" p ON p."ProductId" = pv."ProductId"
         LEFT JOIN "Locations" l ON l."LocationId" = rr."LocationId"
-        LEFT JOIN LATERAL (
-            SELECT "Price" FROM "ProductPrices"
-            WHERE "VariationId" = rr."VariationId" AND "IsActive" = TRUE
+        -- The price the customer actually paid for this item on that order.
+        INNER JOIN LATERAL (
+            SELECT "UnitPrice" FROM "OrderItems"
+            WHERE "OrderId" = rr."OrderId" AND "VariationId" = rr."VariationId"
             LIMIT 1
-        ) pp ON TRUE
+        ) oi ON TRUE
         WHERE rr."Status" = 'Approved'
           AND rr."ApprovedAt" > %(watermark)s
         ORDER BY rr."ApprovedAt" ASC
@@ -310,12 +320,14 @@ async def run_sync_pipeline() -> dict:
             logger.debug("sync_batch_processed", batch=batch_count, rows=rows_inserted, type="refunds")
 
         # ── Drop rows that are no longer sales (voided/cancelled later, or not in the POS) ──
+        reconcile = {"rows_removed": 0, "error": None}
         try:
-            removed = _reconcile(cursor)
-            if removed:
-                logger.info("sync_reconcile_removed_rows", rows=removed)
+            reconcile["rows_removed"] = _reconcile(cursor)
+            if reconcile["rows_removed"]:
+                logger.info("sync_reconcile_removed_rows", rows=reconcile["rows_removed"])
         except Exception as e:
-            logger.warning("sync_reconcile_failed", error=str(e))
+            reconcile["error"] = f"{type(e).__name__}: {e}"
+            logger.warning("sync_reconcile_failed", error=reconcile["error"])
 
         cursor.close()
 
@@ -361,6 +373,8 @@ async def run_sync_pipeline() -> dict:
             "sync_duration_seconds": round(duration, 2),
             "last_sync_timestamp": new_watermark,
             "anomaly_alerts_raised": len(new_alerts),
+            "stale_rows_removed": reconcile["rows_removed"],
+            "cleanup_error": reconcile["error"],
         }
 
     except psycopg2.OperationalError as e:

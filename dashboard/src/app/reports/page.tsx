@@ -144,8 +144,8 @@ export default function ReportsPage() {
   });
 
   const forecastInsights = useQuery({
-    queryKey: ["report", "forecast-insights", rangeDays],
-    queryFn: () => fetchForecastInsights(rangeDays),
+    queryKey: ["report", "forecast-insights", rangeDays, lockedLocation],
+    queryFn: () => fetchForecastInsights(rangeDays, undefined, lockedLocation),
     enabled: (category === "all" || category === "forecast") && !!forecast.data,
   });
 

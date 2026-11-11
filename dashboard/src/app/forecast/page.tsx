@@ -51,8 +51,8 @@ export default function ForecastPage() {
   });
 
   const { data: insights } = useQuery({
-    queryKey: ["forecast", "insights", days, selectedVariationId],
-    queryFn: () => fetchForecastInsights(days, selectedVariationId ?? undefined),
+    queryKey: ["forecast", "insights", days, selectedVariationId, selectedLocationId],
+    queryFn: () => fetchForecastInsights(days, selectedVariationId ?? undefined, selectedLocationId ?? undefined),
     enabled: !!data && data.length > 0,
   });
 

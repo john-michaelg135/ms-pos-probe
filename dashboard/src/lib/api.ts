@@ -181,10 +181,12 @@ export interface ForecastInsightsResponse {
 
 export async function fetchForecastInsights(
   days: number = 7,
-  variationId?: number
+  variationId?: number,
+  locationName?: string
 ): Promise<ForecastInsightsResponse> {
   const params: Record<string, string | number> = { days };
   if (variationId) params.variation_id = variationId;
+  if (locationName) params.location_name = locationName;
   const { data } = await api.get<ForecastInsightsResponse>("/api/probe/forecast/insights", { params });
   return data;
 }
