@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart, Bar, AreaChart, Area, Cell,
@@ -25,6 +25,13 @@ import {
   variationColor, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
 } from "@/lib/chart-theme";
 import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
+import { PrintSignDialog } from "@/components/shared/PrintSignDialog";
+import { useAuthStore } from "@/stores/use-auth-store";
+import {
+  NUM, ReportDetailsStrip, ReportEmpty, ReportFigure, ReportNotes, ReportPrintFrame, ReportSection,
+  ReportTable, TD, TH, TOTAL_ROW, TR,
+} from "@/components/shared/ReportPrint";
+import type { AlertItem, AnomalyMetricsResponse, ForecastInsightsResponse, ForecastItem, ProductSalesItem } from "@/lib/api";
 
 const REPORT_CATEGORIES = [
   { label: "All", value: "all" },
@@ -38,6 +45,52 @@ const RANGE_OPTIONS = [
   { label: "30 Days", value: "30" },
 ];
 
+const REPORT_TITLES: Record<string, string> = {
+  all: "AI Analytics Report",
+  forecast: "Predictive Restocking Report",
+  anomaly: "Anomaly Detection Report",
+};
+
+/** Printed under "Notes to the report", and shown in the signing dialog before printing. */
+function reportNotes(category: string, rangeDays: number, periodLabel: string): string[] {
+  const notes = ["All amounts are in Philippine pesos (₱)."];
+  if (category !== "anomaly") {
+    notes.push(
+      `Demand forecasts are model predictions of the units needed per day over the next ${rangeDays} days, based on past sales. The low–high range shows where actual demand is likely to fall; actual demand can differ.`,
+      `Revenue, orders and historical sales by product cover ${periodLabel}.`,
+    );
+  }
+  if (category !== "forecast") {
+    notes.push(
+      "Alerts are raised by an Isolation Forest model that flags transactions unlike the usual pattern. A flag means the transaction needs review; it is not proof of fraud.",
+      "Precision, recall and F1-score come from the model's most recent evaluation, not from this period's alerts.",
+    );
+  }
+  notes.push("Data comes from the POS and e-commerce systems through a sync that runs every 10 minutes, so the last few minutes of activity may not be included.");
+  return notes;
+}
+
+const peso = (value: number) =>
+  `₱${value.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const count = (value: number) => value.toLocaleString("en-PH");
+const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
+
+/** "October 1 – 31, 2026", like the POS report period. */
+function formatPeriod(from: string, to: string) {
+  const a = new Date(`${from}T00:00:00`);
+  const b = new Date(`${to}T00:00:00`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return `${formatDate(from)} – ${formatDate(to)}`;
+  const month = (d: Date) => d.toLocaleDateString("en-PH", { month: "long" });
+  if (a.getFullYear() === b.getFullYear()) {
+    return a.getMonth() === b.getMonth()
+      ? `${month(a)} ${a.getDate()} – ${b.getDate()}, ${b.getFullYear()}`
+      : `${month(a)} ${a.getDate()} – ${month(b)} ${b.getDate()}, ${b.getFullYear()}`;
+  }
+  return `${month(a)} ${a.getDate()}, ${a.getFullYear()} – ${month(b)} ${b.getDate()}, ${b.getFullYear()}`;
+}
+
+const SIGNATURE_KEY = (username: string) => `report-signature:${username}`;
+
 function riskVariant(level: string): "destructive" | "warning" | "info" {
   if (level === "Critical" || level === "High") return "destructive";
   if (level === "Medium") return "warning";
@@ -50,6 +103,39 @@ export default function ReportsPage() {
   const { dateFrom, dateTo } = useAnalyticsStore();
   // A manager's report covers their branch only.
   const lockedLocation = useLockedLocation() ?? undefined;
+  const user = useAuthStore((state) => state.user);
+  const preparedBy = user?.displayName || user?.username || "";
+  const branchLabel = lockedLocation ?? "All Locations";
+  const periodLabel = formatPeriod(dateFrom, dateTo);
+  const reportTitle = REPORT_TITLES[category] ?? REPORT_TITLES.all;
+  const notes = reportNotes(category, rangeDays, periodLabel);
+
+  // Print / PDF first asks for a signature; it is placed on the printout's sign-off line.
+  const [isSigning, setIsSigning] = useState(false);
+  const [signature, setSignature] = useState<string | null>(null);
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+
+  // Read the remembered signature when signing starts, so it always matches who is signed in.
+  const startSigning = () => {
+    let saved: string | null = null;
+    try {
+      if (user?.username) saved = window.localStorage.getItem(SIGNATURE_KEY(user.username));
+    } catch {
+      saved = null;
+    }
+    setSavedSignature(saved);
+    setIsSigning(true);
+  };
+
+  const saveSignature = (value: string) => {
+    if (!user?.username) return;
+    try {
+      window.localStorage.setItem(SIGNATURE_KEY(user.username), value);
+    } catch {
+      // Storage full or blocked: the signature still prints, it just isn't remembered.
+    }
+    setSavedSignature(value);
+  };
 
   const forecast = useQuery({
     queryKey: ["report", "forecast", rangeDays, lockedLocation],
@@ -107,11 +193,31 @@ export default function ReportsPage() {
   const totalRevenue = revenue.data?.reduce((sum, d) => sum + d.total_revenue, 0) ?? 0;
   const totalOrders = revenue.data?.reduce((sum, d) => sum + d.total_orders, 0) ?? 0;
 
-  const handlePrint = () => window.print();
+  const showForecast = category === "all" || category === "forecast";
+  const showAnomaly = category === "all" || category === "anomaly";
+  // Print once the parts of the report that are shown have loaded.
+  const ready = !(
+    (showForecast && (forecast.isLoading || revenue.isLoading || salesByProduct.isLoading || forecastInsights.isLoading))
+    || (showAnomaly && (alerts.isLoading || anomalyMetrics.isLoading))
+  );
 
-  const reportDate = new Date().toLocaleDateString("en-US", {
-    year: "numeric", month: "long", day: "numeric",
-  });
+  const reportFileStem = () => {
+    const kind = category === "forecast" ? "restocking-report" : category === "anomaly" ? "anomaly-report" : "ai-analytics-report";
+    const branch = branchLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    return `${kind}_${branch}_${dateFrom}_to_${dateTo}`;
+  };
+
+  // Same as the POS: the PDF file name comes from the document title while printing.
+  const printPage = (title: string) => {
+    const originalTitle = document.title;
+    document.title = title;
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 1000);
+    }, 250);
+  };
 
   return (
     <div className="space-y-6">
@@ -125,36 +231,26 @@ export default function ReportsPage() {
             <PageLocationBadge />
           </div>
         </div>
-        <Button onClick={handlePrint}>
-          <Printer className="w-4 h-4" />
-          Print Report
+      </div>
+
+      {/* Toolbar: filters on the left, the print action on the right, as in the POS Sales Report. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="flex flex-wrap items-center gap-3">
+          <ToggleGroupPills options={REPORT_CATEGORIES} value={category} onChange={setCategory} />
+          <ToggleGroupPills
+            options={RANGE_OPTIONS}
+            value={String(rangeDays)}
+            onChange={(v) => setRangeDays(Number(v))}
+          />
+        </div>
+        <Button className="gap-2" disabled={!ready} onClick={startSigning}>
+          <Printer className="h-4 w-4" />
+          Print / PDF
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <ToggleGroupPills options={REPORT_CATEGORIES} value={category} onChange={setCategory} />
-        <ToggleGroupPills
-          options={RANGE_OPTIONS}
-          value={String(rangeDays)}
-          onChange={(v) => setRangeDays(Number(v))}
-        />
-      </div>
-
-      {/* Print header */}
-      <div className="hidden print:block print:mb-6">
-        <h1 className="text-2xl font-bold text-center">Bren Raphael&apos;s Ube Halaya &amp; Jam Company</h1>
-        <h2 className="text-lg text-center text-muted-foreground mt-1">
-          {category === "forecast" ? "Predictive Restocking Report" :
-           category === "anomaly" ? "Anomaly Detection Report" :
-           "POS-PROBE Analytics Report"}
-        </h2>
-        <p className="text-sm text-center text-muted-foreground mt-1">
-          Generated on {reportDate} • Period: {formatDate(dateFrom)} – {formatDate(dateTo)} ({rangeDays} days)
-        </p>
-        <p className="text-xs text-center text-muted-foreground mt-0.5">Generated by POS-PROBE AI System</p>
-      </div>
-
+      {/* On screen: charts and cards. On paper the templated report below replaces them. */}
+      <div className="space-y-6 print:hidden">
       {/* ══ PREDICTIVE RESTOCKING SECTION ══ */}
       {(category === "all" || category === "forecast") && (
         <>
@@ -341,13 +437,43 @@ export default function ReportsPage() {
         </>
       )}
 
-      {/* Print footer */}
-      <div className="hidden print:block print:mt-8 border-t border-border pt-4">
-        <p className="text-[10px] text-muted-foreground text-center">
-          This report was auto-generated by the POS-PROBE AI system on {reportDate}.
-          Data sourced from the Capstone POS &amp; Ecommerce platform via the 10-minute sync pipeline.
-        </p>
       </div>
+
+      <ReportPrintFrame title={reportTitle} periodLabel={periodLabel} branchLabel={branchLabel} className="hidden">
+        <ReportPrintBody
+          showForecast={showForecast}
+          showAnomaly={showAnomaly}
+          rangeDays={rangeDays}
+          branchLabel={branchLabel}
+          preparedBy={preparedBy}
+          notes={notes}
+          signature={signature}
+          totalRevenue={totalRevenue}
+          totalOrders={totalOrders}
+          forecast={forecast.data}
+          insights={forecastInsights.data}
+          salesByProduct={salesByProduct.data}
+          alerts={alerts.data?.alerts}
+          alertsTotal={alerts.data?.total ?? 0}
+          anomalyMetrics={anomalyMetrics.data}
+        />
+      </ReportPrintFrame>
+
+      <PrintSignDialog
+        open={isSigning}
+        onOpenChange={setIsSigning}
+        title={reportTitle}
+        notes={notes}
+        signerName={preparedBy}
+        savedSignature={savedSignature}
+        onSaveSignature={saveSignature}
+        onConfirm={(signed) => {
+          setSignature(signed);
+          setIsSigning(false);
+          // printPage waits a moment, so the signature is on the page and the dialog has closed.
+          printPage(`${reportFileStem()} | ${reportTitle}`);
+        }}
+      />
     </div>
   );
 }
@@ -395,6 +521,313 @@ function SummaryStat({ label, value, tone }: { label: string; value: number; ton
     <div className="bg-muted/50 rounded-xl p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
       <p className={`text-xl font-bold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+// ── Printed report (POS template) ───────────────────────────────────
+
+const RISK_TONE: Record<string, string> = {
+  Critical: "var(--destructive)",
+  High: "var(--destructive)",
+  Medium: "var(--warning)",
+};
+
+function ReportPrintBody({
+  showForecast, showAnomaly, rangeDays, branchLabel, preparedBy, notes, signature,
+  totalRevenue, totalOrders, forecast, insights, salesByProduct, alerts, alertsTotal, anomalyMetrics,
+}: {
+  showForecast: boolean;
+  showAnomaly: boolean;
+  rangeDays: number;
+  branchLabel: string;
+  preparedBy: string;
+  notes: string[];
+  signature: string | null;
+  totalRevenue: number;
+  totalOrders: number;
+  forecast?: ForecastItem[];
+  insights?: ForecastInsightsResponse;
+  salesByProduct?: ProductSalesItem[];
+  alerts?: AlertItem[];
+  alertsTotal: number;
+  anomalyMetrics?: AnomalyMetricsResponse;
+}) {
+  // One row per variation: total predicted units over the window, its range, and the busiest day.
+  const forecastRows = useMemo(() => {
+    const byVariation = new Map<string, { units: number; low: number; high: number; days: number; peakDate: string; peakUnits: number }>();
+    for (const item of forecast ?? []) {
+      const name = `${item.product_name} ${item.variation_name}`;
+      const row = byVariation.get(name) ?? { units: 0, low: 0, high: 0, days: 0, peakDate: item.date, peakUnits: -Infinity };
+      row.units += item.predicted_quantity;
+      row.low += item.lower_bound;
+      row.high += item.upper_bound;
+      row.days += 1;
+      if (item.predicted_quantity > row.peakUnits) {
+        row.peakUnits = item.predicted_quantity;
+        row.peakDate = item.date;
+      }
+      byVariation.set(name, row);
+    }
+    return [...byVariation.entries()]
+      .map(([name, row]) => ({ name, ...row }))
+      .sort((a, b) => getVariationSortIndex(a.name) - getVariationSortIndex(b.name));
+  }, [forecast]);
+
+  const forecastUnits = forecastRows.reduce((sum, r) => sum + r.units, 0);
+  const productRows = [...(salesByProduct ?? [])].sort(
+    (a, b) => getVariationSortIndex(`${a.product_name} ${a.variation_name}`) - getVariationSortIndex(`${b.product_name} ${b.variation_name}`),
+  );
+  const unitsSold = productRows.reduce((sum, p) => sum + p.total_quantity, 0);
+  const productRevenue = productRows.reduce((sum, p) => sum + p.total_revenue, 0);
+
+  const alertList = alerts ?? [];
+  const highRisk = alertList.filter((a) => a.risk_level === "High" || a.risk_level === "Critical").length;
+  const reviewed = alertList.filter((a) => a.status === "Reviewed" || a.status === "Resolved").length;
+  // Only the first page of alerts is loaded, so counts taken from it are labelled as such.
+  const partialAlerts = alertsTotal > alertList.length;
+  const metrics = anomalyMetrics?.metrics;
+  const matrix = metrics?.confusion_matrix;
+
+  const generated = new Date().toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  let n = 0;
+  const next = () => ++n;
+
+  return (
+    <div className="space-y-6 print:space-y-5">
+      <ReportDetailsStrip
+        items={[
+          ["Branch", branchLabel],
+          ["Forecast window", showForecast ? `Next ${rangeDays} days` : "—"],
+          ["Prepared by", preparedBy || "—"],
+          ["Generated", generated],
+        ]}
+      />
+
+      {showForecast && (
+        <>
+          <div className="grid grid-cols-4 gap-3 break-inside-avoid">
+            <ReportFigure label="Revenue" value={peso(totalRevenue)} />
+            <ReportFigure label="Orders" value={count(totalOrders)} />
+            <ReportFigure label="Average order" value={totalOrders > 0 ? peso(totalRevenue / totalOrders) : "—"} />
+            <ReportFigure label={`Forecast units, ${rangeDays} days`} value={count(Math.round(forecastUnits))} />
+          </div>
+
+          <ReportSection number={next()} title="Demand forecast" subtitle={`Predicted units per product variation over the next ${rangeDays} days`}>
+            {forecastRows.length === 0 ? (
+              <ReportEmpty>No forecast available.</ReportEmpty>
+            ) : (
+              <ReportTable minWidth={680}>
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className={TH}>Product variation</th>
+                    <th className={`${TH} !text-right`}>Predicted units</th>
+                    <th className={`${TH} !text-right`}>Per day</th>
+                    <th className={`${TH} !text-right`}>Likely range</th>
+                    <th className={`${TH} !text-right`}>Busiest day</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {forecastRows.map((r) => (
+                    <tr key={r.name} className={TR}>
+                      <td className={`${TD} font-medium text-muted-foreground`}>{r.name}</td>
+                      <td className={`${TD} ${NUM} font-semibold text-foreground`}>{count(Math.round(r.units))}</td>
+                      <td className={`${TD} ${NUM}`}>{(r.units / Math.max(1, r.days)).toFixed(1)}</td>
+                      <td className={`${TD} ${NUM} text-muted-foreground`}>{count(Math.round(r.low))} – {count(Math.round(r.high))}</td>
+                      <td className={`${TD} ${NUM}`}>{formatDate(r.peakDate)}</td>
+                    </tr>
+                  ))}
+                  <tr className={TOTAL_ROW}>
+                    <td className={TD}>Total</td>
+                    <td className={`${TD} ${NUM}`}>{count(Math.round(forecastUnits))}</td>
+                    <td className={`${TD} ${NUM}`}>{(forecastUnits / Math.max(1, rangeDays)).toFixed(1)}</td>
+                    <td className={`${TD} ${NUM}`}>
+                      {count(Math.round(forecastRows.reduce((s, r) => s + r.low, 0)))} – {count(Math.round(forecastRows.reduce((s, r) => s + r.high, 0)))}
+                    </td>
+                    <td className={`${TD} ${NUM}`}>—</td>
+                  </tr>
+                </tbody>
+              </ReportTable>
+            )}
+          </ReportSection>
+
+          {insights && (
+            <ReportSection number={next()} title="AI analysis summary" subtitle="What the forecast model sees in the sales history">
+              <ReportTable minWidth={560}>
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className={`${TH} w-[28%]`}>Particulars</th>
+                    <th className={TH}>Finding</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ["Model confidence", insights.model_baseline],
+                    ["Demand drivers", insights.demand_drivers],
+                    ["Stockout risk", insights.stockout_risk],
+                    ["Safety stock", insights.safety_stock],
+                    ["Velocity class", insights.velocity_class],
+                  ].map(([label, value]) => (
+                    <tr key={label} className={TR}>
+                      <td className={`${TD} font-medium text-muted-foreground align-top`}>{label}</td>
+                      <td className={`${TD} text-foreground`}>{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </ReportTable>
+            </ReportSection>
+          )}
+
+          <ReportSection number={next()} title="Historical sales by product" subtitle="Units sold per variation in the period; informs restocking priorities">
+            {productRows.length === 0 ? (
+              <ReportEmpty>No sales in this period.</ReportEmpty>
+            ) : (
+              <ReportTable minWidth={560}>
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className={TH}>Product variation</th>
+                    <th className={`${TH} !text-right`}>Units sold</th>
+                    <th className={`${TH} !text-right`}>Revenue</th>
+                    <th className={`${TH} !text-right`}>% of units</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productRows.map((p) => {
+                    const name = `${p.product_name} ${p.variation_name}`;
+                    return (
+                      <tr key={name} className={TR}>
+                        <td className={`${TD} font-medium text-muted-foreground`}>{name}</td>
+                        <td className={`${TD} ${NUM}`}>{count(p.total_quantity)}</td>
+                        <td className={`${TD} ${NUM} font-semibold text-foreground`}>{peso(p.total_revenue)}</td>
+                        <td className={`${TD} ${NUM} text-muted-foreground`}>{unitsSold > 0 ? pct(p.total_quantity / unitsSold) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className={TOTAL_ROW}>
+                    <td className={TD}>Total</td>
+                    <td className={`${TD} ${NUM}`}>{count(unitsSold)}</td>
+                    <td className={`${TD} ${NUM}`}>{peso(productRevenue)}</td>
+                    <td className={`${TD} ${NUM}`}>{unitsSold > 0 ? "100.0%" : "—"}</td>
+                  </tr>
+                </tbody>
+              </ReportTable>
+            )}
+          </ReportSection>
+        </>
+      )}
+
+      {showAnomaly && (
+        <>
+          <div className="grid grid-cols-4 gap-3 break-inside-avoid">
+            <ReportFigure label="Alerts" value={count(alertsTotal)} />
+            <ReportFigure label="High risk" value={count(highRisk)} tone={highRisk > 0 ? "var(--destructive)" : undefined}>
+              {partialAlerts && <p className="text-xs text-muted-foreground m-0">Of the {alertList.length} listed</p>}
+            </ReportFigure>
+            <ReportFigure label="Reviewed" value={count(reviewed)}>
+              {partialAlerts && <p className="text-xs text-muted-foreground m-0">Of the {alertList.length} listed</p>}
+            </ReportFigure>
+            <ReportFigure label="Model F1-score" value={metrics ? pct(metrics.f1_score) : "—"} />
+          </div>
+
+          {metrics && (
+            <ReportSection number={next()} title="Model performance" subtitle="How well the Isolation Forest model separates unusual transactions from normal ones">
+              <div className="grid grid-cols-2 gap-5">
+                <ReportTable minWidth={320}>
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className={TH}>Measure</th>
+                      <th className={`${TH} !text-right`}>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ["Precision", pct(metrics.precision)],
+                      ["Recall", pct(metrics.recall)],
+                      ["F1-score", pct(metrics.f1_score)],
+                      ["Expected anomaly rate", `${((anomalyMetrics?.contamination ?? 0) * 100).toFixed(0)}%`],
+                    ].map(([label, value]) => (
+                      <tr key={label} className={TR}>
+                        <td className={`${TD} font-medium text-muted-foreground`}>{label}</td>
+                        <td className={`${TD} ${NUM} font-semibold text-foreground`}>{value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </ReportTable>
+                {matrix && (
+                  <ReportTable minWidth={320}>
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className={TH}>Actual</th>
+                        <th className={`${TH} !text-right`}>Flagged</th>
+                        <th className={`${TH} !text-right`}>Not flagged</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className={TR}>
+                        <td className={`${TD} font-medium text-muted-foreground`}>Anomaly</td>
+                        <td className={`${TD} ${NUM} font-semibold text-foreground`}>{count(matrix.true_positive)}</td>
+                        <td className={`${TD} ${NUM}`}>{count(matrix.false_negative)}</td>
+                      </tr>
+                      <tr className={TR}>
+                        <td className={`${TD} font-medium text-muted-foreground`}>Normal</td>
+                        <td className={`${TD} ${NUM}`}>{count(matrix.false_positive)}</td>
+                        <td className={`${TD} ${NUM} font-semibold text-foreground`}>{count(matrix.true_negative)}</td>
+                      </tr>
+                    </tbody>
+                  </ReportTable>
+                )}
+              </div>
+            </ReportSection>
+          )}
+
+          <ReportSection
+            number={next()}
+            title="Flagged transactions"
+            subtitle={alertsTotal > alertList.length ? `The ${alertList.length} most recent of ${count(alertsTotal)} alerts in the period` : "Alerts raised in the period"}
+          >
+            {alertList.length === 0 ? (
+              <ReportEmpty>No alerts in this period.</ReportEmpty>
+            ) : (
+              <ReportTable minWidth={760}>
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className={TH}>Detected</th>
+                    <th className={TH}>Order</th>
+                    <th className={TH}>Branch</th>
+                    <th className={`${TH} !text-right`}>Amount</th>
+                    <th className={TH}>Risk</th>
+                    <th className={TH}>Reason</th>
+                    <th className={TH}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alertList.map((a) => (
+                    <tr key={a.alert_id} className={TR}>
+                      <td className={`${TD} whitespace-nowrap`}>{formatDate(a.detected_at.slice(0, 10))}</td>
+                      <td className={`${TD} font-mono text-xs`}>{a.order_id.slice(0, 8)}</td>
+                      <td className={`${TD} text-muted-foreground`}>{a.location_name ?? "—"}</td>
+                      <td className={`${TD} ${NUM}`}>{peso(a.transaction_amount)}</td>
+                      <td className={`${TD} font-semibold`} style={{ color: RISK_TONE[a.risk_level] }}>{a.risk_level}</td>
+                      <td className={`${TD} text-muted-foreground`}>{a.reason}</td>
+                      <td className={TD}>{a.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </ReportTable>
+            )}
+          </ReportSection>
+        </>
+      )}
+
+      <ReportNotes notes={notes} preparedBy={preparedBy} signature={signature} />
     </div>
   );
 }
