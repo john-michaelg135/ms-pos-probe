@@ -129,8 +129,18 @@ export interface ForecastItem {
   product_name: string;
   variation_name: string;
   predicted_quantity: number;
+  /** Unrounded expected units for charts: 0.3 means about one sale every three days. */
+  expected_quantity?: number;
+  /** Likely range: 10th–90th percentile of the forecast's own past errors. */
   lower_bound: number;
   upper_bound: number;
+  /** Recommended production: covers demand on about 9 days in 10. */
+  recommended_quantity: number;
+  /** Forecast method chosen for this variation, e.g. "Weekday average". */
+  method?: string;
+  location_name?: string;
+  location_ratio?: number;
+  location_basis?: string;
 }
 
 export async function fetchForecast(
@@ -149,7 +159,7 @@ export async function fetchForecast(
 
 export interface ForecastLocation {
   location_name: string;
-  transaction_count: number;
+  has_recent_sales: boolean;
 }
 
 export async function fetchForecastLocations(): Promise<ForecastLocation[]> {
@@ -284,21 +294,39 @@ export interface AlertsResponse {
 export interface BacktestResponse {
   status: string;
   engine: string;
+  trained_at?: string;
   metrics: Array<{
+    variation_id: number;
     variation_name: string;
-    mape: number;
-    mae: number;
-    r_squared: number;
+    /** Method chosen for this variation. */
     engine: string;
+    /** Average miss, units per day. */
+    mae: number | null;
+    /** Total error as a share of total sales, %. */
+    wape: number | null;
+    /** Reference only: skips zero-sale days. */
+    mape: number | null;
+    r_squared: number | null;
+    /** Share of backtest days whose actual sales fell inside the likely range, %. */
+    coverage: number | null;
+    /** Average miss of "same weekday last week". */
+    baseline_mae: number | null;
+    beats_baseline: boolean;
+    backtest_days: number;
+    selling_days: number;
+    history_days: number;
   }>;
   overall: {
-    avg_mape: number;
-    avg_mae: number;
-    avg_r_squared: number;
+    avg_mae: number | null;
+    avg_wape: number | null;
+    avg_mape: number | null;
+    avg_r_squared: number | null;
+    avg_coverage: number | null;
+    target_coverage: number;
     passed: number;
     total: number;
-    pass_threshold: number;
     overall_pass: boolean;
+    pass_rule: string;
   };
 }
 

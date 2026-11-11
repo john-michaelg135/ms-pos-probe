@@ -56,7 +56,7 @@ function reportNotes(category: string, rangeDays: number, periodLabel: string): 
   const notes = ["All amounts are in Philippine pesos (₱)."];
   if (category !== "anomaly") {
     notes.push(
-      `Demand forecasts are model predictions of the units needed per day over the next ${rangeDays} days, based on past sales. The low–high range shows where actual demand is likely to fall; actual demand can differ.`,
+      `Demand forecasts predict walk-in, bazaar and online units per day for the next ${rangeDays} days from past sales; institutional orders are booked ahead and not included. Each variation uses the method with the smallest errors on its own recent sales. The likely range is the 10th–90th percentile of past forecast errors, so actual demand should fall inside it on about 8 days in 10.`,
       `Revenue, orders and historical sales by product cover ${periodLabel}.`,
     );
   }

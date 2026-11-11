@@ -51,15 +51,15 @@ export default function QuotaPage() {
     return data
       .filter((item) => item.date === selectedDate)
       .filter((item) => productFilter === "all" || item.product_name === productFilter)
-      .map((item) => ({ ...item, recommended_production: Math.ceil(item.upper_bound) }))
+      .map((item) => ({ ...item, recommended_production: item.recommended_quantity }))
       .sort((a, b) => getVariationSortIndex(undefined, a.variation_id) - getVariationSortIndex(undefined, b.variation_id));
   }, [data, selectedDate, productFilter]);
 
   const productTotals = useMemo(() => {
     if (!data) return { halaya: 0, jam: 0, all: 0 };
     const dayData = data.filter((item) => item.date === selectedDate);
-    const halaya = dayData.filter((d) => d.product_name === "Ube Halaya").reduce((sum, d) => sum + Math.ceil(d.upper_bound), 0);
-    const jam = dayData.filter((d) => d.product_name === "Ube Jam").reduce((sum, d) => sum + Math.ceil(d.upper_bound), 0);
+    const halaya = dayData.filter((d) => d.product_name === "Ube Halaya").reduce((sum, d) => sum + d.recommended_quantity, 0);
+    const jam = dayData.filter((d) => d.product_name === "Ube Jam").reduce((sum, d) => sum + d.recommended_quantity, 0);
     return { halaya, jam, all: halaya + jam };
   }, [data, selectedDate]);
 
@@ -198,7 +198,8 @@ export default function QuotaPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground print:hidden">
-        💡 The &quot;Recommended Restock&quot; uses the upper bound estimate, rounded up — stocking slightly more than predicted is safer than stockouts.
+        💡 &quot;Recommended Restock&quot; is enough to cover demand on about 9 days in 10, based on how far past forecasts missed.
+        Lower and upper estimates are the likely range (10th–90th percentile). Institutional orders are booked ahead and not included.
       </p>
     </div>
   );

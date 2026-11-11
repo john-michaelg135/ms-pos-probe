@@ -45,7 +45,7 @@ export default function AccuracyPage() {
               </div>
               <div>
                 <h2 className="text-base font-semibold text-foreground">Demand Forecasting Model</h2>
-                <p className="text-xs text-muted-foreground">Facebook Prophet / Exponential Smoothing</p>
+                <p className="text-xs text-muted-foreground">Weekday average · Recent average · Holt-Winters, chosen per variation by backtest</p>
               </div>
               {backtest.data?.overall && (
                 <PassFailBadge passed={backtest.data.overall.overall_pass} className="ml-auto" />
@@ -56,14 +56,14 @@ export default function AccuracyPage() {
             {backtest.isLoading ? (
               <div className="h-[100px] flex items-center justify-center"><p className="text-sm text-muted-foreground animate-pulse">Loading backtest results…</p></div>
             ) : backtest.data?.status === "no_model" ? (
-              <p className="text-sm text-muted-foreground">No trained forecast model found. Run train_prophet.py first.</p>
+              <p className="text-sm text-muted-foreground">No trained forecast yet. It trains from POS sales shortly after the AI service starts, then every night (or run scripts/train_forecast.py).</p>
             ) : backtest.data?.overall ? (
               <div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <MetricCard label="MAPE (Avg)" value={`${backtest.data.overall.avg_mape}%`} sublabel={`Target: ≤ ${backtest.data.overall.pass_threshold}%`} pass={backtest.data.overall.overall_pass} tooltip="Mean Absolute Percentage Error (MAPE) measures the average percentage difference between predicted and actual values. Lower values indicate better accuracy. A MAPE ≤ 20% is generally considered acceptable for demand forecasting." />
-                  <MetricCard label="MAE (Avg)" value={`${backtest.data.overall.avg_mae}`} sublabel="Mean Absolute Error" tooltip="Mean Absolute Error (MAE) measures the average magnitude of errors in predictions without considering their direction. Lower MAE means more accurate predictions." />
-                  <MetricCard label="R²" value={`${backtest.data.overall.avg_r_squared}`} sublabel="Coefficient of Determination" tooltip="R² indicates how well the model's predictions fit the actual data. Values range from 0 to 1, where 1 means perfect prediction. Values above 0.7 are generally considered good." />
-                  <MetricCard label="Variations Passed" value={`${backtest.data.overall.passed}/${backtest.data.overall.total}`} sublabel="MAPE ≤ 20%" tooltip="Variations Passed shows how many product variations achieved a MAPE within the acceptable threshold (≤ 20%)." />
+                  <MetricCard label="MAE (Avg)" value={backtest.data.overall.avg_mae != null ? `${backtest.data.overall.avg_mae} units` : "—"} sublabel="Average miss per day" tooltip="Mean Absolute Error: on average, how many units a day the forecast missed by in the backtest (forecasting each of the last four weeks from the data before it). Lower is better." />
+                  <MetricCard label="WAPE (Avg)" value={backtest.data.overall.avg_wape != null ? `${backtest.data.overall.avg_wape}%` : "—"} sublabel="Total miss ÷ total sales" tooltip="Weighted Absolute Percentage Error: all the units the forecast missed by, divided by all the units actually sold. Unlike MAPE it handles days with zero or very few sales, which are common per variation." />
+                  <MetricCard label="Range Coverage" value={backtest.data.overall.avg_coverage != null ? `${backtest.data.overall.avg_coverage}%` : "—"} sublabel={`Target: about ${backtest.data.overall.target_coverage}%`} tooltip="How often actual sales fell inside the likely range (10th–90th percentile) on backtest days the range wasn't built from. Near 80% means the range is honest; far below means it's too narrow, far above means too wide." />
+                  <MetricCard label="Beat Baseline" value={`${backtest.data.overall.passed}/${backtest.data.overall.total}`} sublabel="vs same weekday last week" pass={backtest.data.overall.overall_pass} tooltip="How many variations the forecast predicted better (lower average miss) than simply repeating the same weekday last week. The model passes when at least 3 in 4 variations beat it." />
                 </div>
 
                 <details className="group">
@@ -73,21 +73,27 @@ export default function AccuracyPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Variation</TableHead>
-                          <TableHead className="text-right">MAPE</TableHead>
+                          <TableHead>Method</TableHead>
                           <TableHead className="text-right">MAE</TableHead>
-                          <TableHead className="text-right">R²</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
+                          <TableHead className="text-right">Baseline MAE</TableHead>
+                          <TableHead className="text-right">WAPE</TableHead>
+                          <TableHead className="text-right">In range</TableHead>
+                          <TableHead className="text-right">MAPE*</TableHead>
+                          <TableHead className="text-center">Beats baseline</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {backtest.data.metrics.map((m, i) => (
                           <TableRow key={i}>
                             <TableCell className="font-medium text-muted-foreground">{m.variation_name}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">{m.mape}%</TableCell>
-                            <TableCell className="text-right text-muted-foreground">{m.mae}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">{m.r_squared}</TableCell>
+                            <TableCell className="text-muted-foreground">{m.engine}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{m.mae ?? "—"}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{m.baseline_mae ?? "—"}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{m.wape != null ? `${m.wape}%` : "—"}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{m.coverage != null ? `${m.coverage}%` : "—"}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{m.mape != null ? `${m.mape}%` : "—"}</TableCell>
                             <TableCell className="text-center">
-                              {m.mape <= 20
+                              {m.beats_baseline
                                 ? <CheckCircle className="w-3.5 h-3.5 inline text-success" />
                                 : <XCircle className="w-3.5 h-3.5 inline text-destructive" />}
                             </TableCell>
@@ -96,6 +102,9 @@ export default function AccuracyPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    *MAPE is shown for reference only: it skips zero-sale days and inflates on 1–2 unit days, which are common per variation, so it isn&apos;t used to pass or fail.
+                  </p>
                 </details>
               </div>
             ) : null}
@@ -113,7 +122,7 @@ export default function AccuracyPage() {
                 <h2 className="text-base font-semibold text-foreground">Anomaly Detection Model</h2>
                 <p className="text-xs text-muted-foreground">Scikit-Learn Isolation Forest</p>
               </div>
-              {anomalyMetrics.data && (
+              {anomalyMetrics.data?.status === "completed" && (
                 <PassFailBadge passed={anomalyMetrics.data.overall_pass} className="ml-auto" />
               )}
             </div>
@@ -122,7 +131,10 @@ export default function AccuracyPage() {
             {anomalyMetrics.isLoading ? (
               <div className="h-[100px] flex items-center justify-center"><p className="text-sm text-muted-foreground animate-pulse">Loading metrics…</p></div>
             ) : anomalyMetrics.data?.status === "no_model" ? (
-              <p className="text-sm text-muted-foreground">No trained Isolation Forest model found. Run train_iforest.py first.</p>
+              <p className="text-sm text-muted-foreground">
+                No per-channel model yet: each sales channel (walk-in, bazaar, institutional, online) needs at least 40 orders in the last 180 days.
+                Until then, alerts come from the POS process rules and the usual-range checks, which don&apos;t need a trained model.
+              </p>
             ) : anomalyMetrics.data?.metrics ? (
               <div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

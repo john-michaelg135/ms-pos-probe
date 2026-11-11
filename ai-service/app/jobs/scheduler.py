@@ -1,7 +1,7 @@
 """
 US-PROBE-006: APScheduler background job scheduler.
 Runs the data sync pipeline on a configurable interval (default: 10 minutes).
-Runs model re-training weekly (every Sunday at 2am).
+Re-trains the demand forecast daily (2am) and the anomaly models weekly (Sunday 2:30am).
 Does not block the FastAPI async event loop.
 """
 
@@ -26,57 +26,38 @@ async def sync_job() -> None:
     await run_sync_pipeline()
 
 
-async def train_models_job() -> None:
-    """
-    Auto-training job: re-trains forecast and anomaly models weekly.
-    Uses data already in DuckDB (synced from legacy system).
-    Only trains if there's enough data (30+ days).
-    """
+async def _run_script(name: str, timeout: int) -> bool:
+    """Run a training script in a worker thread so the API keeps answering while it trains."""
+    import asyncio
     import subprocess
     import sys
     from pathlib import Path
 
     scripts_dir = Path(__file__).parent.parent.parent / "scripts"
-    python = sys.executable
-
-    logger.info("auto_training_started")
-
-    # Train forecast model
     try:
-        result = subprocess.run(
-            [python, str(scripts_dir / "train_prophet.py")],
-            capture_output=True, text=True, timeout=300,
-            cwd=str(scripts_dir.parent),
+        result = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, str(scripts_dir / name)],
+            capture_output=True, text=True, timeout=timeout, cwd=str(scripts_dir.parent),
         )
-        if result.returncode == 0:
-            logger.info("auto_training_forecast_complete")
-        else:
-            logger.warning("auto_training_forecast_failed", stderr=result.stderr[-200:] if result.stderr else "")
     except Exception as e:
-        logger.error("auto_training_forecast_error", error=str(e))
+        logger.error("auto_training_error", script=name, error=str(e))
+        return False
+    if result.returncode != 0:
+        logger.warning("auto_training_failed", script=name, stderr=result.stderr[-300:] if result.stderr else "")
+        return False
+    logger.info("auto_training_complete", script=name)
+    return True
 
-    await train_anomaly_model_job()
+
+async def train_forecast_job() -> None:
+    """Re-train the demand forecast from the POS database (daily)."""
+    await _run_script("train_forecast.py", timeout=600)
 
 
 async def train_anomaly_model_job() -> None:
-    """Re-train the per-channel Isolation Forest models and load them for /anomaly/detect."""
-    import subprocess
-    import sys
-    from pathlib import Path
-
-    scripts_dir = Path(__file__).parent.parent.parent / "scripts"
-    try:
-        result = subprocess.run(
-            [sys.executable, str(scripts_dir / "train_iforest.py")],
-            capture_output=True, text=True, timeout=120,
-            cwd=str(scripts_dir.parent),
-        )
-        if result.returncode == 0:
-            logger.info("auto_training_iforest_complete")
-        else:
-            logger.warning("auto_training_iforest_failed", stderr=result.stderr[-200:] if result.stderr else "")
-    except Exception as e:
-        logger.error("auto_training_iforest_error", error=str(e))
+    """Re-train the per-channel Isolation Forest models (weekly)."""
+    await _run_script("train_iforest.py", timeout=300)
 
 
 def start_scheduler() -> None:
@@ -92,24 +73,42 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
-    # Model re-training every Sunday at 2:00 AM
+    # Forecast re-training every day at 2:00 AM, so it always ends yesterday
     scheduler.add_job(
-        train_models_job,
-        trigger=CronTrigger(day_of_week="sun", hour=2, minute=0),
-        id="weekly_model_training",
-        name="Weekly Model Re-Training",
+        train_forecast_job,
+        trigger=CronTrigger(hour=2, minute=0),
+        id="daily_forecast_training",
+        name="Daily Forecast Re-Training",
         replace_existing=True,
     )
 
-    # No per-channel anomaly model yet (first run, or only the old single model exists):
-    # train one shortly after startup instead of waiting for Sunday.
+    # Anomaly model re-training every Sunday at 2:30 AM
+    scheduler.add_job(
+        train_anomaly_model_job,
+        trigger=CronTrigger(day_of_week="sun", hour=2, minute=30),
+        id="weekly_model_training",
+        name="Weekly Anomaly Model Re-Training",
+        replace_existing=True,
+    )
+
+    # Missing or old-style models (first run, or before this update): train shortly after startup.
+    from datetime import datetime, timedelta
+    from apscheduler.triggers.date import DateTrigger
     from app.services.anomaly_engine import load_models
+    from app.services.forecast_engine import load_bundle
+
+    if load_bundle() is None:
+        scheduler.add_job(
+            train_forecast_job,
+            trigger=DateTrigger(run_date=datetime.now() + timedelta(minutes=1)),
+            id="initial_forecast_training",
+            name="Initial forecast training",
+            replace_existing=True,
+        )
     if load_models() is None:
-        from datetime import datetime, timedelta
-        from apscheduler.triggers.date import DateTrigger
         scheduler.add_job(
             train_anomaly_model_job,
-            trigger=DateTrigger(run_date=datetime.now() + timedelta(minutes=2)),
+            trigger=DateTrigger(run_date=datetime.now() + timedelta(minutes=3)),
             id="initial_anomaly_model_training",
             name="Initial per-channel anomaly model training",
             replace_existing=True,
@@ -119,7 +118,7 @@ def start_scheduler() -> None:
     logger.info(
         "scheduler_started",
         sync_interval_minutes=settings.sync_interval_minutes,
-        training_schedule="Every Sunday at 2:00 AM",
+        training_schedule="Forecast daily 2:00 AM; anomaly model Sundays 2:30 AM",
     )
 
 

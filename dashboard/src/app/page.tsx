@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
+  CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle, formatAvgUnits, AVG_UNITS_AXIS_LABEL,
 } from "@/lib/chart-theme";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 import { getVariationSortIndex } from "@/lib/variation-order";
@@ -64,12 +64,12 @@ function OwnerDashboard() {
   const gatewayHealth = useQuery({ queryKey: ["health", "gateway"], queryFn: fetchGatewayHealth, refetchInterval: 120_000 });
   const aiHealth = useQuery({ queryKey: ["health", "ai-service"], queryFn: fetchAiServiceHealth, refetchInterval: 120_000 });
 
-  // Tomorrow's quota: the high end of the forecast, rounded up, as on the Restocking Quota page.
+  // Tomorrow's quota: recommended production (covers demand on ~9 days in 10), as on the Restocking Quota page.
   const quota = useMemo(
     () =>
       (forecast.data ?? [])
         .filter((item) => item.date === tomorrow)
-        .map((item) => ({ ...item, recommended: Math.ceil(item.upper_bound) }))
+        .map((item) => ({ ...item, recommended: item.recommended_quantity }))
         .sort((a, b) => getVariationSortIndex(undefined, a.variation_id) - getVariationSortIndex(undefined, b.variation_id)),
     [forecast.data, tomorrow],
   );
@@ -133,9 +133,9 @@ function OwnerDashboard() {
           href="/accuracy"
           icon={<Target className="w-4 h-4" />}
           iconColor="bg-info/15 text-info"
-          label="Forecast error"
-          value={overall ? `${overall.avg_mape}%` : backtest.isLoading ? "…" : "—"}
-          sublabel={overall ? `${overall.passed} of ${overall.total} variations within ${overall.pass_threshold}%` : "Average miss vs actual sales"}
+          label="Forecast miss"
+          value={overall?.avg_mae != null ? `±${overall.avg_mae} units/day` : backtest.isLoading ? "…" : "—"}
+          sublabel={overall?.total ? `${overall.passed} of ${overall.total} variations beat last week's pattern` : "Average miss vs actual sales"}
         />
         <LinkMetricCard
           icon={<Clock className="w-4 h-4" />}
@@ -155,15 +155,15 @@ function OwnerDashboard() {
             {outlook.length > 0 ? (
               <>
                 <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={outlook} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <BarChart data={outlook} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
                     <XAxis dataKey="date" tick={AXIS_TICK} tickFormatter={formatDateShort} />
-                    <YAxis tick={AXIS_TICK} width={40} allowDecimals={false} />
+                    <YAxis tick={AXIS_TICK} width={40} allowDecimals={false} tickFormatter={(v) => formatAvgUnits(Number(v))} label={AVG_UNITS_AXIS_LABEL} />
                     <Tooltip
                       contentStyle={tooltipContentStyle}
                       labelStyle={tooltipLabelStyle}
                       labelFormatter={(l) => formatDate(String(l))}
-                      formatter={(v, name) => [`${units(Number(v))} units`, String(name)]}
+                      formatter={(v, name) => [`${formatAvgUnits(Number(v))} units`, String(name)]}
                     />
                     <Bar dataKey={HALAYA} stackId="units" fill={PRODUCT_COLORS[HALAYA]} />
                     <Bar dataKey={JAM} stackId="units" fill={PRODUCT_COLORS[JAM]} radius={[4, 4, 0, 0]} />
@@ -231,7 +231,9 @@ function OwnerDashboard() {
           <CardContent className="space-y-2.5">
             <HealthRow
               label="Demand forecast"
-              detail={overall ? `${overall.avg_mape}% average error · R² ${overall.avg_r_squared}` : "Not evaluated yet"}
+              detail={overall?.total
+                ? `Misses by ${overall.avg_mae} units/day${overall.avg_coverage != null ? ` · in range ${overall.avg_coverage}% of days` : ""}`
+                : "Not evaluated yet"}
               ok={overall?.overall_pass}
               loading={backtest.isLoading}
             />

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
 import {
-  variationColor, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
+  variationColor, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle, formatAvgUnits, AVG_UNITS_AXIS_LABEL,
 } from "@/lib/chart-theme";
 import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 
@@ -168,14 +168,15 @@ export default function ForecastPage() {
           ) : chartData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                   <XAxis dataKey="date" tick={AXIS_TICK} tickFormatter={formatDateShort} />
-                  <YAxis tick={AXIS_TICK} />
+                  <YAxis tick={AXIS_TICK} allowDecimals={false} tickFormatter={(v) => formatAvgUnits(Number(v))} label={AVG_UNITS_AXIS_LABEL} />
                   <Tooltip
                     contentStyle={{ ...tooltipContentStyle, maxHeight: 350, overflow: "auto" }}
                     labelStyle={{ ...tooltipLabelStyle, fontWeight: 600 }}
                     labelFormatter={(label) => formatDate(String(label))}
+                    formatter={(v, name) => [`${formatAvgUnits(Number(v))} units`, String(name)]}
                   />
                   <Legend content={() => null} />
                   {variations.map((name) => (
@@ -225,7 +226,7 @@ export default function ForecastPage() {
                     Data-backed demand insights derived from historical POS transaction patterns
                   </CardDescription>
                 </div>
-                <Badge variant="purple">{insights?.engine || "Statsmodels"} Additive ML</Badge>
+                <Badge variant="purple">{insights?.engine || "Forecast"}</Badge>
               </div>
 
               <div className="flex items-center gap-2">

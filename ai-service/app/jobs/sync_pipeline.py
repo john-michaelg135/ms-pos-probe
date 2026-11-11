@@ -27,6 +27,14 @@ logger = structlog.get_logger()
 BATCH_SIZE = 5000
 WATERMARK_KEY = "pos_probe:last_sync_timestamp"
 
+# Bump when the synced row format changes; a new version re-syncs everything once.
+# v2: Philippine-time dates, only real sales (paid, part-paid or completed).
+SYNC_VERSION = "2"
+SYNC_VERSION_KEY = "pos_probe:sync_version"
+
+# A sale, as the POS counts one (same rule as the demand forecast and api-pos DashboardService).
+from app.services.forecast_engine import SALE_FILTER  # noqa: E402
+
 
 def _get_watermark() -> str:
     """Get the last sync timestamp from Redis. Returns epoch if no prior sync."""
@@ -84,7 +92,8 @@ def _fetch_batch(cursor, watermark: str, offset: int) -> list[dict]:
             o."SubmittedBy"::TEXT                   AS cashier_id,
             NULL                                    AS cashier_name,
             o."CustomerId"::TEXT                    AS customer_id,
-            o."CreatedAt"                           AS transaction_date,
+            -- Philippine time, so daily totals and hours match the business day
+            (o."CreatedAt" AT TIME ZONE 'Asia/Manila') AS transaction_date,
             NOW()                                   AS synced_at
         FROM "Orders" o
         INNER JOIN "OrderItems" oi ON oi."OrderId" = o."OrderId"
@@ -92,10 +101,10 @@ def _fetch_batch(cursor, watermark: str, offset: int) -> list[dict]:
         INNER JOIN "Products" p ON p."ProductId" = pv."ProductId"
         LEFT JOIN "Locations" l ON l."LocationId" = o."LocationId"
         WHERE o."UpdatedAt" > %(watermark)s
-          AND o."OrderStatus" NOT IN ('Cancelled', 'Rejected')
+          AND {SALE_FILTER}
         ORDER BY o."UpdatedAt" ASC
         LIMIT %(limit)s OFFSET %(offset)s
-    """
+    """.replace("{SALE_FILTER}", SALE_FILTER)
 
     cursor.execute(query, {
         "watermark": watermark,
@@ -106,6 +115,35 @@ def _fetch_batch(cursor, watermark: str, offset: int) -> list[dict]:
     columns = [desc[0] for desc in cursor.description]
     rows = cursor.fetchall()
     return [dict(zip(columns, row)) for row in rows]
+
+
+def _reconcile(cursor) -> int:
+    """
+    Remove analytics rows that no longer match a POS sale: orders later voided, cancelled or
+    rejected, refunds no longer approved, and rows with no POS order at all (old synthetic data).
+    Skipped when the POS returns no sales, so a wrong or empty database can't wipe the analytics.
+    """
+    cursor.execute(f'SELECT o."OrderId"::TEXT FROM "Orders" o WHERE {SALE_FILTER}')
+    sale_ids = [r[0] for r in cursor.fetchall()]
+    if not sale_ids:
+        return 0
+    cursor.execute("""SELECT CONCAT('REF-', "RefundRequestId") FROM "RefundRequests" WHERE "Status" = 'Approved'""")
+    refund_ids = [r[0] for r in cursor.fetchall()]
+
+    conn = get_duckdb()
+    before = conn.execute("SELECT COUNT(*) FROM sales_transactions").fetchone()[0]
+    conn.register("_sale_ids", pd.DataFrame({"order_id": sale_ids}))
+    conn.register("_refund_ids", pd.DataFrame({"transaction_id": refund_ids or ["__none__"]}))
+    try:
+        conn.execute("""
+            DELETE FROM sales_transactions
+            WHERE (is_refund = FALSE AND order_id NOT IN (SELECT order_id FROM _sale_ids))
+               OR (is_refund = TRUE AND transaction_id NOT IN (SELECT transaction_id FROM _refund_ids))
+        """)
+    finally:
+        conn.unregister("_sale_ids")
+        conn.unregister("_refund_ids")
+    return before - conn.execute("SELECT COUNT(*) FROM sales_transactions").fetchone()[0]
 
 
 def _fetch_refund_batch(cursor, watermark: str, offset: int) -> list[dict]:
@@ -133,7 +171,7 @@ def _fetch_refund_batch(cursor, watermark: str, offset: int) -> list[dict]:
             rr."RequestedBy"::TEXT                  AS cashier_id,
             NULL                                    AS cashier_name,
             NULL                                    AS customer_id,
-            rr."ApprovedAt"                         AS transaction_date,
+            (rr."ApprovedAt" AT TIME ZONE 'Asia/Manila') AS transaction_date,
             NOW()                                   AS synced_at
         FROM "RefundRequests" rr
         INNER JOIN "ProductVariations" pv ON pv."VariationId" = rr."VariationId"
@@ -225,6 +263,14 @@ async def run_sync_pipeline() -> dict:
     watermark = _get_watermark()
     new_watermark = datetime.now(timezone.utc).isoformat()
 
+    # Row format changed since the last sync: re-sync everything once (rows are upserted).
+    resync = False
+    try:
+        if get_redis().get(SYNC_VERSION_KEY) != SYNC_VERSION:
+            watermark, resync = "2000-01-01T00:00:00+00:00", True
+    except Exception as e:
+        logger.warning("sync_version_check_failed", error=str(e))
+
     logger.info("sync_pipeline_started", watermark=watermark)
 
     try:
@@ -263,6 +309,14 @@ async def run_sync_pipeline() -> dict:
 
             logger.debug("sync_batch_processed", batch=batch_count, rows=rows_inserted, type="refunds")
 
+        # ── Drop rows that are no longer sales (voided/cancelled later, or not in the POS) ──
+        try:
+            removed = _reconcile(cursor)
+            if removed:
+                logger.info("sync_reconcile_removed_rows", rows=removed)
+        except Exception as e:
+            logger.warning("sync_reconcile_failed", error=str(e))
+
         cursor.close()
 
         # ── Anomaly check on orders and refunds saved since the last scan ──
@@ -286,6 +340,11 @@ async def run_sync_pipeline() -> dict:
 
         # Only update watermark AFTER successful insertion (exactly-once semantics)
         _set_watermark(new_watermark)
+        if resync:
+            try:
+                get_redis().set(SYNC_VERSION_KEY, SYNC_VERSION)
+            except Exception as e:
+                logger.warning("sync_version_write_failed", error=str(e))
 
         duration = perf_counter() - start_time
 
