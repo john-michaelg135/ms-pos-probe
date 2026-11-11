@@ -6,7 +6,7 @@ import {
   BarChart, Bar, AreaChart, Area, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Printer, TrendingUp, ShieldAlert, Filter } from "lucide-react";
+import { Printer, TrendingUp, ShieldAlert } from "lucide-react";
 import {
   fetchForecast, fetchForecastInsights, fetchRevenue,
   fetchSalesByProduct, fetchAlerts, fetchAnomalyMetrics,
@@ -133,10 +133,7 @@ export default function ReportsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          <ToggleGroupPills options={REPORT_CATEGORIES} value={category} onChange={setCategory} />
-        </div>
+        <ToggleGroupPills options={REPORT_CATEGORIES} value={category} onChange={setCategory} />
         <ToggleGroupPills
           options={RANGE_OPTIONS}
           value={String(rangeDays)}

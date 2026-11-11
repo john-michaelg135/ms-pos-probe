@@ -118,9 +118,9 @@ export default function ForecastPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 lg:items-end">
+        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
           {!lockedLocation && (
-          <div className="w-[280px]">
+          <div className="w-full sm:w-56">
             <Select
               value={selectedLocationId ?? "all"}
               onValueChange={(v: string) => setSelectedLocationId(v === "all" ? null : v)}
@@ -139,13 +139,11 @@ export default function ForecastPage() {
           )}
 
           <ToggleGroupPills
-            className="w-[280px]"
             options={PRODUCT_FILTERS}
             value={productFilter}
             onChange={setProductFilter}
           />
           <ToggleGroupPills
-            className="w-[280px]"
             options={FORECAST_WINDOWS}
             value={String(days)}
             onChange={(v) => setDays(Number(v))}

@@ -20,18 +20,20 @@ interface ToggleGroupPillsProps {
  */
 export function ToggleGroupPills({ options, value, onChange, className }: ToggleGroupPillsProps) {
   return (
-    <div className={cn("inline-flex items-center gap-1 rounded-lg bg-muted p-1", className)}>
+    <div className={cn("inline-flex items-center gap-1 rounded-xl bg-muted p-1", className)} role="tablist">
       {options.map((opt) => {
         const active = opt.value === value;
         return (
           <button
             key={opt.value}
             type="button"
+            role="tab"
+            aria-selected={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors cursor-pointer",
+              "px-3 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer",
               active
-                ? "bg-primary text-primary-foreground shadow-sm"
+                ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
