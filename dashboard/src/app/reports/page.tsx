@@ -62,8 +62,8 @@ function reportNotes(category: string, rangeDays: number, periodLabel: string): 
   }
   if (category !== "forecast") {
     notes.push(
-      "Alerts are raised by an Isolation Forest model that flags transactions unlike the usual pattern. A flag means the transaction needs review; it is not proof of fraud.",
-      "Precision, recall and F1-score come from the model's most recent evaluation, not from this period's alerts.",
+      "Each order is compared only with recent orders from the same channel (walk-in store, bazaar, institutional or online), so large institutional orders are not flagged for their size. Alerts come from POS process checks (such as the 20 kg institutional minimum, the 50% downpayment, payments recorded against Paid orders and self-approved refunds), amounts or units far outside the channel's usual range, and a per-channel Isolation Forest model. A flag means the transaction needs review; it is not proof of fraud.",
+      "Precision, recall and F1-score come from the model's most recent training and measure agreement with proxy labels (orders far outside their channel's usual range), not a confirmed fraud rate.",
     );
   }
   notes.push("Data comes from the POS and e-commerce systems through a sync that runs every 10 minutes, so the last few minutes of activity may not be included.");

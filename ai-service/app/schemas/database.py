@@ -57,6 +57,10 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
         )
     """)
 
+    # Business-aware alerts: channel, kind of check, de-duplication key, stored explanation.
+    for column in ("order_type", "alert_kind", "dedup_key", "details"):
+        conn.execute(f"ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS {column} VARCHAR")
+
     # Index for common query patterns
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_sales_date

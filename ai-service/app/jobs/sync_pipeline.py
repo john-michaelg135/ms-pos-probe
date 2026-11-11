@@ -264,7 +264,25 @@ async def run_sync_pipeline() -> dict:
             logger.debug("sync_batch_processed", batch=batch_count, rows=rows_inserted, type="refunds")
 
         cursor.close()
+
+        # ── Anomaly check on orders and refunds saved since the last scan ──
+        # Runs on the same read-only connection; a failure here never fails the sync.
+        new_alerts: list[dict] = []
+        try:
+            from app.services.anomaly_engine import scan_for_anomalies
+            new_alerts = scan_for_anomalies(pg_conn, get_duckdb(), get_redis())
+        except Exception as e:
+            logger.error("anomaly_scan_failed", error=str(e))
+
         pg_conn.close()
+
+        if new_alerts:
+            try:
+                from app.routers.alerts import broadcast_alert
+                for alert in new_alerts:
+                    await broadcast_alert(alert)
+            except Exception as e:
+                logger.warning("anomaly_broadcast_failed", error=str(e))
 
         # Only update watermark AFTER successful insertion (exactly-once semantics)
         _set_watermark(new_watermark)
@@ -283,6 +301,7 @@ async def run_sync_pipeline() -> dict:
             "batch_count": batch_count,
             "sync_duration_seconds": round(duration, 2),
             "last_sync_timestamp": new_watermark,
+            "anomaly_alerts_raised": len(new_alerts),
         }
 
     except psycopg2.OperationalError as e:

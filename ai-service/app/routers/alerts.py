@@ -205,7 +205,7 @@ async def explain_alert(
     alert_row = conn.execute("""
         SELECT alert_id, order_id, transaction_amount, anomaly_score,
                risk_level, reason, cashier_id, cashier_name,
-               location_id, location_name, detected_at
+               location_id, location_name, detected_at, details
         FROM anomaly_alerts WHERE alert_id = ?
     """, [alert_id]).fetchone()
 
@@ -214,8 +214,32 @@ async def explain_alert(
 
     columns = ["alert_id", "order_id", "transaction_amount", "anomaly_score",
                "risk_level", "reason", "cashier_id", "cashier_name",
-               "location_id", "location_name", "detected_at"]
+               "location_id", "location_name", "detected_at", "details"]
     alert = dict(zip(columns, alert_row))
+
+    # Alerts from the business-aware checks carry their own explanation, compared with the
+    # transaction's own sales channel. Older alerts fall through to the general comparison below.
+    if alert["details"]:
+        try:
+            details = json.loads(alert["details"])
+        except (TypeError, ValueError):
+            details = None
+        if details:
+            reasons = alert["reason"].split("; ") if alert["reason"] else []
+            return {
+                "alert_id": alert_id,
+                "explanation": "\n\n".join(details.get("explanation", [])),
+                "pattern_summary": reasons[0] if len(reasons) == 1 else "; ".join(reasons),
+                "historical_context": {
+                    "avg_transaction_amount": details.get("typical_amount"),
+                    "std_transaction_amount": None,
+                    "avg_quantity": details.get("typical_units"),
+                    "total_transactions_analyzed": details.get("baseline_orders"),
+                    "peak_hours": [],
+                },
+                "risk_factors": reasons,
+                "cashier_context": None,
+            }
 
     # Gather historical statistics for context
     try:

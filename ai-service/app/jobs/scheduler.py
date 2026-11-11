@@ -55,10 +55,19 @@ async def train_models_job() -> None:
     except Exception as e:
         logger.error("auto_training_forecast_error", error=str(e))
 
-    # Train anomaly model
+    await train_anomaly_model_job()
+
+
+async def train_anomaly_model_job() -> None:
+    """Re-train the per-channel Isolation Forest models and load them for /anomaly/detect."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    scripts_dir = Path(__file__).parent.parent.parent / "scripts"
     try:
         result = subprocess.run(
-            [python, str(scripts_dir / "train_iforest.py")],
+            [sys.executable, str(scripts_dir / "train_iforest.py")],
             capture_output=True, text=True, timeout=120,
             cwd=str(scripts_dir.parent),
         )
@@ -91,6 +100,20 @@ def start_scheduler() -> None:
         name="Weekly Model Re-Training",
         replace_existing=True,
     )
+
+    # No per-channel anomaly model yet (first run, or only the old single model exists):
+    # train one shortly after startup instead of waiting for Sunday.
+    from app.services.anomaly_engine import load_models
+    if load_models() is None:
+        from datetime import datetime, timedelta
+        from apscheduler.triggers.date import DateTrigger
+        scheduler.add_job(
+            train_anomaly_model_job,
+            trigger=DateTrigger(run_date=datetime.now() + timedelta(minutes=2)),
+            id="initial_anomaly_model_training",
+            name="Initial per-channel anomaly model training",
+            replace_existing=True,
+        )
 
     scheduler.start()
     logger.info(
