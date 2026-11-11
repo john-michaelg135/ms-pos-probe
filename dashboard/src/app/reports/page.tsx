@@ -17,9 +17,6 @@ import { useAnalyticsStore } from "@/stores/use-analytics-store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { ToggleGroupPills } from "@/components/shared/ToggleGroupPills";
 import {
   variationColor, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle,
@@ -401,31 +398,34 @@ export default function ReportsPage() {
                   <SummaryStat label="Reviewed" value={alerts.data.alerts.filter((a) => a.status === "Reviewed" || a.status === "Resolved").length} tone="success" />
                 </div>
                 {alerts.data.alerts.length > 0 && (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Order ID</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                          <TableHead className="text-center">Risk</TableHead>
-                          <TableHead>Reason</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                  <div>
+                    {/* Same themed table as the POS reports (and this report's printout). */}
+                    <ReportTable minWidth={760}>
+                      <thead>
+                        <tr className="border-b border-border bg-muted/30">
+                          <th className={TH}>Order</th>
+                          <th className={TH}>Branch</th>
+                          <th className={`${TH} !text-right`}>Amount</th>
+                          <th className={TH}>Risk</th>
+                          <th className={TH}>Reason</th>
+                          <th className={TH}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                         {alerts.data.alerts.slice(0, 10).map((alert) => (
-                          <TableRow key={alert.alert_id}>
-                            <TableCell className="font-mono text-xs">{alert.order_id.slice(0, 8)}…</TableCell>
-                            <TableCell className="text-right">₱{alert.transaction_amount.toLocaleString()}</TableCell>
-                            <TableCell className="text-center">
+                          <tr key={alert.alert_id} className={TR}>
+                            <td className={`${TD} font-mono text-xs whitespace-nowrap text-foreground`}>{alert.order_id}</td>
+                            <td className={`${TD} text-muted-foreground`}>{alert.location_name ?? "—"}</td>
+                            <td className={`${TD} ${NUM} font-semibold text-foreground`}>{peso(alert.transaction_amount)}</td>
+                            <td className={TD}>
                               <Badge variant={riskVariant(alert.risk_level)}>{alert.risk_level}</Badge>
-                            </TableCell>
-                            <TableCell className="max-w-[200px] truncate text-muted-foreground">{alert.reason}</TableCell>
-                            <TableCell className="text-center text-muted-foreground">{alert.status}</TableCell>
-                          </TableRow>
+                            </td>
+                            <td className={`${TD} text-muted-foreground min-w-[280px]`}>{alert.reason}</td>
+                            <td className={`${TD} text-muted-foreground whitespace-nowrap`}>{alert.status}</td>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </ReportTable>
                     {alerts.data.total > 10 && (
                       <p className="text-xs text-muted-foreground mt-2">Showing 10 of {alerts.data.total} alerts</p>
                     )}
