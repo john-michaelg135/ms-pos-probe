@@ -58,11 +58,31 @@ RARE_HOUR_SHARE = 0.005      # an hour with under 0.5% of a branch's sales is "u
 Z_MEDIUM = 3.5               # robust z-score that counts as far outside the usual range
 Z_HIGH = 6.0
 MAD_FLOOR = 0.05             # minimum spread on the log scale (about ±5%)
+# Size floor on top of the z-score. While most sales are the same single pouch, the usual range is
+# so narrow that any 2-pouch sale scores as extreme; a sale (or refund) must also be this many
+# times the typical amount or unit count to be flagged at all, and the second multiple for High.
+SIZE_MEDIUM_MULTIPLE = 3.0
+SIZE_HIGH_MULTIPLE = 5.0
 BURST_COUNT = 3              # refunds or voids by one person in one day
 DISCOUNT_WINDOW_DAYS = 30
 DISCOUNT_MIN_COUNT = 8
 DISCOUNT_MIN_SHARE = 0.30
 DISCOUNT_BRANCH_MULTIPLE = 3.0
+# Per-cashier void and refund rates (requests filed in the window, against sales they rang up).
+RATE_WINDOW_DAYS = 30
+RATE_MIN_SALES = 10          # sales a cashier needs before their rate is judged
+RATE_MIN_COUNT = 3           # voids (or refunds) needed before a rate can be flagged
+RATE_MIN_SHARE = 0.10        # at least 10% of their sales...
+RATE_BRANCH_MULTIPLE = 3.0   # ...and at least 3× their branch's rate
+
+# 0 = online customer / unknown and 1 = the placeholder the POS stored before it recorded the
+# signed-in user (staff numbers start at 1000). Neither is a real person, so person-based checks
+# skip them; otherwise all older activity would look like one very busy "cashier 1".
+NOT_A_PERSON = {"0", "1", "None", "nan", ""}
+
+
+def is_person(value) -> bool:
+    return value is not None and str(value) not in NOT_A_PERSON
 
 WATERMARK_KEY = "pos_probe:anomaly_scan_watermark"
 MANILA = timezone(timedelta(hours=8))
@@ -205,13 +225,23 @@ def build_baselines(history: pd.DataFrame, now_local: datetime) -> Baselines:
     recent = counter[pd.to_datetime(counter["local_date"]).dt.date >= since]
     for loc, group in recent.groupby("location_id"):
         b.branch_discount_rate[int(loc)] = float(group["has_discount"].mean()) if len(group) else 0.0
-    for cashier, group in recent[recent["cashier_id"].notna()].groupby("cashier_id"):
+    for cashier, group in recent[recent["cashier_id"].map(is_person)].groupby("cashier_id"):
         b.discount[str(cashier)] = {
             "orders": int(len(group)),
             "discounted": int(group["has_discount"].sum()),
             "location_id": int(group["location_id"].mode().iloc[0]) if group["location_id"].notna().any() else None,
         }
     return b
+
+
+def size_risk(z: float, value: float, typical: float) -> str | None:
+    """Medium/High when a value is both statistically unusual and clearly bigger than typical."""
+    multiple = value / max(typical, 1e-9)
+    if z >= Z_HIGH and multiple >= SIZE_HIGH_MULTIPLE:
+        return "High"
+    if z >= Z_MEDIUM and multiple >= SIZE_MEDIUM_MULTIPLE:
+        return "Medium"
+    return None
 
 
 def _baseline_for(b: Baselines, segment: str, location_id) -> tuple[dict | None, str]:
@@ -231,7 +261,7 @@ class Finding:
 
 @dataclass
 class Alert:
-    kind: str                 # sale | refund | refund-burst | void-burst | discount-share
+    kind: str                 # sale | refund | refund-burst | void-burst | discount-share | void-rate | refund-rate
     dedup_key: str
     order_id: str
     amount: float
@@ -242,6 +272,7 @@ class Alert:
     location_id: int | None
     location_name: str | None
     context: dict = field(default_factory=dict)
+    cashier_name: str | None = None
 
     @property
     def risk(self) -> str:
@@ -316,14 +347,16 @@ def evaluate_orders(new_orders: pd.DataFrame, b: Baselines, models: dict | None)
                 "z_amount": round(z_total, 2),
                 "z_units": round(z_units, 2),
             })
-            if z_total >= Z_MEDIUM:
+            amount_risk = size_risk(z_total, total, typical_total)
+            if amount_risk:
                 findings.append(Finding(
-                    "amount-high", "High" if z_total >= Z_HIGH else "Medium",
+                    "amount-high", amount_risk,
                     f"{peso(total)} is {total / max(typical_total, 1):.1f}× a typical {label} order {where} ({peso(typical_total)})",
                 ))
-            if z_units >= Z_MEDIUM:
+            units_risk = size_risk(z_units, float(row["units"]), typical_units)
+            if units_risk:
                 findings.append(Finding(
-                    "units-high", "High" if z_units >= Z_HIGH else "Medium",
+                    "units-high", units_risk,
                     f"{row['units']:.0f} units, against a typical {typical_units:.0f} for a {label} order {where}",
                 ))
 
@@ -369,7 +402,7 @@ def evaluate_discount_share(new_orders: pd.DataFrame, b: Baselines, today_local)
     alerts: list[Alert] = []
     if new_orders.empty:
         return alerts
-    active = new_orders[new_orders["segment"].isin(DISCOUNT_SEGMENTS) & new_orders["has_discount"] & new_orders["cashier_id"].notna()]
+    active = new_orders[new_orders["segment"].isin(DISCOUNT_SEGMENTS) & new_orders["has_discount"] & new_orders["cashier_id"].map(is_person)]
     week = today_local.isocalendar()
     for cashier in sorted(set(active["cashier_id"].astype(str))):
         stats = b.discount.get(cashier)
@@ -405,15 +438,20 @@ def evaluate_refunds(refunds: pd.DataFrame, b: Baselines) -> list[Alert]:
         findings: list[Finding] = []
         seg = segment_of(row["order_type"], row["order_source"])
         amount = float(row["refund_amount"] or 0)
-        if row["status"] == "Approved" and row["approved_by"] is not None and str(row["approved_by"]) == str(row["requested_by"]):
+        # 0 = online customer or unknown requester, 1 = the placeholder used before the POS
+        # recorded who requested and approved; neither identifies a person.
+        if (row["status"] == "Approved" and row["approved_by"] is not None
+                and str(row["requested_by"]) not in ("0", "1", "None")
+                and str(row["approved_by"]) == str(row["requested_by"])):
             findings.append(Finding("refund-self-approved", "High", "Refund approved by the same person who requested it"))
         baseline, scope = _baseline_for(b, seg, row["location_id"])
         if baseline and amount > 0:
             z = robust_z(math.log1p(amount), baseline["total"])
             typical = math.expm1(baseline["total"]["median"])
-            if z >= Z_MEDIUM:
+            refund_risk = size_risk(z, amount, typical)
+            if refund_risk:
                 findings.append(Finding(
-                    "refund-large", "High" if z >= Z_HIGH else "Medium",
+                    "refund-large", refund_risk,
                     f"Refund of {peso(amount)} is {amount / max(typical, 1):.1f}× a typical {SEGMENT_LABEL[seg]} sale ({peso(typical)})",
                 ))
         if findings:
@@ -437,7 +475,8 @@ def evaluate_bursts(events: pd.DataFrame, kind: str, noun: str) -> list[Alert]:
     alerts: list[Alert] = []
     if events.empty:
         return alerts
-    for (person, day), group in events.dropna(subset=["person_id"]).groupby(["person_id", "local_date"]):
+    events = events[events["person_id"].map(is_person)]
+    for (person, day), group in events.groupby(["person_id", "local_date"]):
         if len(group) < BURST_COUNT:
             continue
         last = group.iloc[-1]
@@ -453,6 +492,56 @@ def evaluate_bursts(events: pd.DataFrame, kind: str, noun: str) -> list[Alert]:
             location_id=_none_if_nan(last["location_id"]),
             location_name=_none_if_nan(last["location_name"]),
         ))
+    return alerts
+
+
+def evaluate_cashier_rates(activity: dict[str, pd.DataFrame], today_local) -> list[Alert]:
+    """Cashiers who void or refund a much larger share of their sales than their branch does.
+
+    `activity` has "sales" (orders each cashier rang up), "voids" (void requests each person
+    filed) and "refunds" (orders each person requested a refund on), all for the last
+    RATE_WINDOW_DAYS. One alert per cashier, kind and week.
+    """
+    alerts: list[Alert] = []
+    sales = activity["sales"]
+    if sales.empty:
+        return alerts
+    sales = sales[sales["person_id"].map(is_person)]
+    branch_sales = activity["sales"].groupby("location_id")["count"].sum()
+    week = today_local.isocalendar()
+
+    for kind, noun, events in (("void-rate", "void requests", activity["voids"]), ("refund-rate", "refund requests", activity["refunds"])):
+        if events.empty:
+            continue
+        branch_events = events.groupby("location_id")["count"].sum()
+        mine = events[events["person_id"].map(is_person)]
+        for (person, location_id), row in mine.groupby(["person_id", "location_id"]):
+            count = int(row["count"].sum())
+            sold = int(sales[(sales["person_id"] == person) & (sales["location_id"] == location_id)]["count"].sum())
+            if count < RATE_MIN_COUNT or sold < RATE_MIN_SALES:
+                continue
+            share = count / sold
+            branch_total = int(branch_sales.get(location_id, 0))
+            branch_rate = float(branch_events.get(location_id, 0)) / branch_total if branch_total else 0.0
+            if share < max(RATE_MIN_SHARE, RATE_BRANCH_MULTIPLE * branch_rate):
+                continue
+            last = row.iloc[-1]
+            alerts.append(Alert(
+                kind=kind,
+                dedup_key=f"{kind}:{person}:{location_id}:{week[0]}-W{week[1]}",
+                order_id=str(last["last_order"]),
+                amount=float(row["amount"].sum()),
+                score=0.0,
+                findings=[Finding(
+                    kind, "Medium",
+                    f"{count} {noun} against {sold} sales by this cashier in the last {RATE_WINDOW_DAYS} days "
+                    f"({share:.0%}), against {branch_rate:.0%} for the branch",
+                )],
+                segment=None,
+                cashier_id=str(person),
+                location_id=_none_if_nan(location_id),
+                location_name=_none_if_nan(last["location_name"]),
+            ))
     return alerts
 
 
@@ -562,15 +651,61 @@ _VOIDS_SQL = """
     SELECT
         o."OrderId"                             AS order_id,
         o."OrderNumber"                         AS order_number,
-        o."SubmittedBy"::TEXT                   AS person_id,
+        -- Who asked for the void (falls back to who rang up the sale for older voids).
+        COALESCE(vr."ChangedBy", o."SubmittedBy")::TEXT AS person_id,
         o."LocationId"                          AS location_id,
         l."LocationName"                        AS location_name,
         o."TotalAmount"::FLOAT                  AS amount,
         (o."UpdatedAt" AT TIME ZONE 'Asia/Manila')::DATE AS local_date
     FROM "Orders" o
     LEFT JOIN "Locations" l ON l."LocationId" = o."LocationId"
+    LEFT JOIN LATERAL (
+        SELECT h."ChangedBy"
+        FROM "OrderStatusHistories" h
+        WHERE h."OrderId" = o."OrderId" AND h."NewStatus" = 'Void Requested'
+        ORDER BY h."CreatedAt" DESC
+        LIMIT 1
+    ) vr ON TRUE
     WHERE o."OrderStatus" = 'Voided' AND o."UpdatedAt" >= %(since)s
     ORDER BY o."UpdatedAt"
+"""
+
+
+_CASHIER_SALES_SQL = """
+    SELECT o."SubmittedBy"::TEXT AS person_id, o."LocationId" AS location_id, COUNT(*) AS count
+    FROM "Orders" o
+    WHERE o."OrderSource" = 'POS' AND o."CreatedAt" >= %(since)s
+      AND o."SubmittedBy" IS NOT NULL AND o."LocationId" IS NOT NULL
+    GROUP BY 1, 2
+"""
+
+# Void requests filed (approved, rejected or still waiting) and refund requests, per person.
+_CASHIER_VOIDS_SQL = """
+    SELECT h."ChangedBy"::TEXT AS person_id, o."LocationId" AS location_id,
+           COUNT(DISTINCT o."OrderId") AS count, SUM(o."TotalAmount")::FLOAT AS amount,
+           MAX(o."OrderNumber") AS last_order, MAX(l."LocationName") AS location_name
+    FROM "OrderStatusHistories" h
+    JOIN "Orders" o ON o."OrderId" = h."OrderId"
+    LEFT JOIN "Locations" l ON l."LocationId" = o."LocationId"
+    WHERE h."NewStatus" = 'Void Requested' AND h."CreatedAt" >= %(since)s
+      AND h."ChangedBy" IS NOT NULL AND o."LocationId" IS NOT NULL
+    GROUP BY 1, 2
+"""
+
+_CASHIER_REFUNDS_SQL = """
+    SELECT rr."RequestedBy"::TEXT AS person_id, o."LocationId" AS location_id,
+           COUNT(DISTINCT rr."OrderId") AS count,
+           SUM(COALESCE(oi."UnitPrice", 0) * rr."QuantityToReturn")::FLOAT AS amount,
+           MAX(o."OrderNumber") AS last_order, MAX(l."LocationName") AS location_name
+    FROM "RefundRequests" rr
+    JOIN "Orders" o ON o."OrderId" = rr."OrderId"
+    LEFT JOIN "Locations" l ON l."LocationId" = o."LocationId"
+    LEFT JOIN LATERAL (
+        SELECT i."UnitPrice" FROM "OrderItems" i
+        WHERE i."OrderId" = rr."OrderId" AND i."VariationId" = rr."VariationId" LIMIT 1
+    ) oi ON TRUE
+    WHERE rr."CreatedAt" >= %(since)s AND o."LocationId" IS NOT NULL
+    GROUP BY 1, 2
 """
 
 
@@ -606,6 +741,29 @@ def fetch_recent_refunds(cursor, since: datetime) -> pd.DataFrame:
 
 def fetch_recent_voids(cursor, since: datetime) -> pd.DataFrame:
     return _query(cursor, _VOIDS_SQL, {"since": since})
+
+
+def fetch_cashier_activity(cursor, since: datetime) -> dict[str, pd.DataFrame]:
+    params = {"since": since}
+    return {
+        "sales": _query(cursor, _CASHIER_SALES_SQL, params),
+        "voids": _query(cursor, _CASHIER_VOIDS_SQL, params),
+        "refunds": _query(cursor, _CASHIER_REFUNDS_SQL, params),
+    }
+
+
+def fetch_staff_names(pg_conn) -> dict[str, str]:
+    """Staff number -> display name, from the POS staff table (absent on older POS databases)."""
+    cursor = pg_conn.cursor()
+    try:
+        cursor.execute('SELECT "Id", COALESCE(NULLIF("DisplayName", \'\'), "Username") FROM "PosStaffUsers"')
+        return {str(row[0]): row[1] for row in cursor.fetchall()}
+    except Exception as e:
+        pg_conn.rollback()
+        logger.warning("staff_names_unavailable", error=str(e))
+        return {}
+    finally:
+        cursor.close()
 
 
 # ── DuckDB writes ──
@@ -651,11 +809,11 @@ def save_alerts(conn, alerts: list[Alert], now_utc: datetime) -> list[dict]:
             INSERT INTO anomaly_alerts (alert_id, order_id, transaction_amount, anomaly_score, risk_level, reason,
                                         cashier_id, cashier_name, location_id, location_name, detected_at, status,
                                         order_type, alert_kind, dedup_key, details)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'New', ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?)
             """,
             [
                 alert_id, alert.order_id, round(alert.amount, 2), round(alert.score, 4), alert.risk, alert.reason,
-                alert.cashier_id, alert.location_id, alert.location_name, now_utc.replace(tzinfo=None),
+                alert.cashier_id, alert.cashier_name, alert.location_id, alert.location_name, now_utc.replace(tzinfo=None),
                 alert.segment, alert.kind, alert.dedup_key, json.dumps(explanation_for(alert)),
             ],
         )
@@ -667,7 +825,7 @@ def save_alerts(conn, alerts: list[Alert], now_utc: datetime) -> list[dict]:
             "risk_level": alert.risk,
             "reason": alert.reason,
             "cashier_id": alert.cashier_id,
-            "cashier_name": None,
+            "cashier_name": alert.cashier_name,
             "location_id": alert.location_id,
             "location_name": alert.location_name,
             "detected_at": now_utc.isoformat(),
@@ -700,8 +858,10 @@ def scan_for_anomalies(pg_conn, duck_conn, redis_client) -> list[dict]:
         refunds = fetch_changed_refunds(cursor, since)
         recent_refunds = fetch_recent_refunds(cursor, now_utc - timedelta(days=2))
         recent_voids = fetch_recent_voids(cursor, now_utc - timedelta(days=2))
+        cashier_activity = fetch_cashier_activity(cursor, now_utc - timedelta(days=RATE_WINDOW_DAYS))
     finally:
         cursor.close()
+    staff_names = fetch_staff_names(pg_conn)
 
     baselines = build_baselines(history, now_local)
     models = load_models()
@@ -712,7 +872,11 @@ def scan_for_anomalies(pg_conn, duck_conn, redis_client) -> list[dict]:
         + evaluate_refunds(refunds, baselines)
         + evaluate_bursts(recent_refunds, "refund-burst", "refund requests")
         + evaluate_bursts(recent_voids, "void-burst", "voided sales")
+        + evaluate_cashier_rates(cashier_activity, now_local.date())
     )
+    for alert in alerts:
+        if is_person(alert.cashier_id):
+            alert.cashier_name = staff_names.get(str(alert.cashier_id))
 
     ensure_alert_columns(duck_conn)
     saved = save_alerts(duck_conn, alerts, now_utc)
