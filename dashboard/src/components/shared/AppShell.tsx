@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Moon, PanelLeft, Sun } from "lucide-react";
+import { Check, ChevronsUpDown, CreditCard, Moon, PanelLeft, Radar, Sun, X } from "lucide-react";
 import { Fragment, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import {
@@ -19,6 +19,11 @@ import {
 } from "@/components/ui/sidebar";
 import { useSession } from "@/lib/auth/session";
 import { canAccessRoute, useAuthStore } from "@/stores/use-auth-store";
+import { posSalesUrl } from "@/lib/pos-url";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { BrandLockup } from "./BrandLockup";
 import { ReturnToPosButton } from "./ReturnToPosButton";
@@ -27,14 +32,64 @@ import { UserCard } from "./UserCard";
 
 const NO_SHELL_ROUTES = ["/signin"];
 
-// Same width as the POS sidebar (288px), so switching between the systems doesn't shift anything.
-const SIDEBAR_STYLE = { "--sidebar-width": "18rem" } as CSSProperties;
+const SIDEBAR_STYLE = { "--sidebar-width": "18.5rem" } as CSSProperties;
 
 const ROLE_NAMES: Record<string, string> = { owner: "Owner", manager: "Manager" };
 
 // Icon-only header controls, styled like the Portal's ghost icon buttons.
 const HEADER_ICON_BUTTON =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-foreground transition-colors outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-[18px]";
+
+function NavigationHeader() {
+  const { isMobile, setOpenMobile } = useSidebar();
+  return (
+    <SidebarHeader className="h-24 shrink-0 flex-row items-center gap-2 border-b border-sidebar-border py-0 pl-3.5 pr-2.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" aria-label="Select enterprise module, current module POS Probe"
+            className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl p-1 hover:bg-sidebar-accent focus-visible:outline-ring">
+            <BrandLockup />
+            <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={6} className="w-[calc(100vw-2rem)] max-w-[20rem] space-y-0.5 rounded-xl border-border p-1.5 shadow-xl">
+          <DropdownMenuLabel className="px-2.5 pt-1.5 pb-2 text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+            Select enterprise module
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator className="-mx-1.5 mt-0 mb-1 bg-border" />
+          <DropdownMenuItem asChild className="cursor-pointer gap-3 rounded-lg px-2.5 py-2">
+            <a href={posSalesUrl}>
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/[0.07] text-zinc-600 dark:text-zinc-300">
+                <CreditCard aria-hidden className="size-4" strokeWidth={1.75} />
+              </span>
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-xs leading-snug font-medium">Point of Sale</span>
+                <span className="text-[11px] leading-tight text-muted-foreground">Retail &amp; register checkout</span>
+              </span>
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled aria-current="true" className="gap-3 rounded-lg bg-violet-500/10 px-2.5 py-2 data-[disabled]:opacity-100">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white shadow-xs">
+              <Radar aria-hidden className="size-4" strokeWidth={1.75} />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-xs leading-snug font-semibold">POS Probe</span>
+              <span className="text-[11px] leading-tight text-muted-foreground">Sales analytics, forecasts &amp; alerts</span>
+            </span>
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white">
+              <Check aria-hidden className="size-3 stroke-[3]" />
+            </span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {isMobile && (
+        <button type="button" aria-label="Close navigation" onClick={() => setOpenMobile(false)} className={HEADER_ICON_BUTTON}>
+          <X aria-hidden />
+        </button>
+      )}
+    </SidebarHeader>
+  );
+}
 
 function Navigation() {
   const pathname = usePathname();
@@ -154,9 +209,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     // The window never scrolls; only <main> does, so its scrollbar sits under the header.
     <SidebarProvider className="h-svh overflow-hidden print:h-auto print:overflow-visible" style={SIDEBAR_STYLE}>
       <Sidebar collapsible="offcanvas">
-        <SidebarHeader className="h-24 justify-center border-b border-sidebar-border py-0 pl-3.5 pr-2.5">
-          <BrandLockup />
-        </SidebarHeader>
+        <NavigationHeader />
         <Navigation />
       </Sidebar>
 

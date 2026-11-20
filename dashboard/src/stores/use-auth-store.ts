@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { posSalesUrl } from "@/lib/pos-url";
 import { canAccessRoute, ROLE_ACCESS, type UserRole } from "@/lib/auth/roles";
 
 export type { UserRole };
@@ -21,9 +22,6 @@ interface AuthState {
   hydrate: () => Promise<void>;
   logout: () => Promise<void>;
 }
-
-/** The POS, where people sign in and where they return after logging out. */
-export const POS_URL = (process.env.NEXT_PUBLIC_POS_URL ?? "https://localhost:3002").replace(/\/$/, "");
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
@@ -63,7 +61,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     localStorage.removeItem("access_token");
     set({ user: null, isAuthenticated: false });
-    window.location.href = `${POS_URL}/sales-processing`;
+    window.location.href = posSalesUrl;
   },
 }));
 

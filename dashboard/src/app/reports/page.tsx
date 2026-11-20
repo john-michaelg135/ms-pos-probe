@@ -23,7 +23,7 @@ import {
 } from "@/lib/chart-theme";
 import { PageLocationBadge, useLockedLocation } from "@/components/shared/PageLocationBadge";
 import { PrintSignDialog } from "@/components/shared/PrintSignDialog";
-import { useAuthStore } from "@/stores/use-auth-store";
+import { useReportPrint } from "@/hooks/use-report-print";
 import {
   NUM, ReportDetailsStrip, ReportEmpty, ReportFigure, ReportNotes, ReportPrintFrame, ReportSection,
   ReportTable, TD, TH, TOTAL_ROW, TR,
@@ -86,7 +86,6 @@ function formatPeriod(from: string, to: string) {
   return `${month(a)} ${a.getDate()}, ${a.getFullYear()} – ${month(b)} ${b.getDate()}, ${b.getFullYear()}`;
 }
 
-const SIGNATURE_KEY = (username: string) => `report-signature:${username}`;
 
 function riskVariant(level: string): "destructive" | "warning" | "info" {
   if (level === "Critical" || level === "High") return "destructive";
@@ -100,39 +99,11 @@ export default function ReportsPage() {
   const { dateFrom, dateTo } = useAnalyticsStore();
   // A manager's report covers their branch only.
   const lockedLocation = useLockedLocation() ?? undefined;
-  const user = useAuthStore((state) => state.user);
-  const preparedBy = user?.displayName || user?.username || "";
+  const { preparedBy, signature, startSigning, signingDialog } = useReportPrint();
   const branchLabel = lockedLocation ?? "All Locations";
   const periodLabel = formatPeriod(dateFrom, dateTo);
   const reportTitle = REPORT_TITLES[category] ?? REPORT_TITLES.all;
   const notes = reportNotes(category, rangeDays, periodLabel);
-
-  // Print / PDF first asks for a signature; it is placed on the printout's sign-off line.
-  const [isSigning, setIsSigning] = useState(false);
-  const [signature, setSignature] = useState<string | null>(null);
-  const [savedSignature, setSavedSignature] = useState<string | null>(null);
-
-  // Read the remembered signature when signing starts, so it always matches who is signed in.
-  const startSigning = () => {
-    let saved: string | null = null;
-    try {
-      if (user?.username) saved = window.localStorage.getItem(SIGNATURE_KEY(user.username));
-    } catch {
-      saved = null;
-    }
-    setSavedSignature(saved);
-    setIsSigning(true);
-  };
-
-  const saveSignature = (value: string) => {
-    if (!user?.username) return;
-    try {
-      window.localStorage.setItem(SIGNATURE_KEY(user.username), value);
-    } catch {
-      // Storage full or blocked: the signature still prints, it just isn't remembered.
-    }
-    setSavedSignature(value);
-  };
 
   const forecast = useQuery({
     queryKey: ["report", "forecast", rangeDays, lockedLocation],
@@ -204,18 +175,6 @@ export default function ReportsPage() {
     return `${kind}_${branch}_${dateFrom}_to_${dateTo}`;
   };
 
-  // Same as the POS: the PDF file name comes from the document title while printing.
-  const printPage = (title: string) => {
-    const originalTitle = document.title;
-    document.title = title;
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 1000);
-    }, 250);
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -257,8 +216,7 @@ export default function ReportsPage() {
             subtitle="AI-driven demand forecasting and restocking recommendations"
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard label="Total Revenue" value={`₱${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} sublabel={`${dateFrom} to ${dateTo}`} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <MetricCard label="Total Orders" value={`${totalOrders.toLocaleString()}`} sublabel="Orders processed" />
             <MetricCard label="Forecast Window" value={`Next ${rangeDays} Days`} sublabel="Predicted demand period" />
           </div>
@@ -459,21 +417,7 @@ export default function ReportsPage() {
         />
       </ReportPrintFrame>
 
-      <PrintSignDialog
-        open={isSigning}
-        onOpenChange={setIsSigning}
-        title={reportTitle}
-        notes={notes}
-        signerName={preparedBy}
-        savedSignature={savedSignature}
-        onSaveSignature={saveSignature}
-        onConfirm={(signed) => {
-          setSignature(signed);
-          setIsSigning(false);
-          // printPage waits a moment, so the signature is on the page and the dialog has closed.
-          printPage(`${reportFileStem()} | ${reportTitle}`);
-        }}
-      />
+      <PrintSignDialog {...signingDialog(`${reportFileStem()} | ${reportTitle}`)} title={reportTitle} notes={notes} />
     </div>
   );
 }

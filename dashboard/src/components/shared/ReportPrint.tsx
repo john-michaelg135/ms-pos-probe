@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
+import { BrandLockup } from "./BrandLockup";
 
 import { cn } from "@/lib/utils";
 
@@ -15,22 +15,7 @@ export const COMPANY_NAME = "Bren Raphael's";
 function PrintHeader({ title, periodLabel, branchLabel }: { title: string; periodLabel: string; branchLabel: string }) {
   return (
     <div className="flex items-center justify-between gap-6 pb-3 mb-5 border-b-2 border-primary">
-      <div className="flex items-center gap-3">
-        <Image
-          src="/images/bren-raphaels-logo.svg"
-          alt=""
-          width={40}
-          height={40}
-          unoptimized
-          className="size-10 shrink-0 rounded-[9px]"
-        />
-        <div className="flex flex-col gap-1">
-          <span className="text-lg font-bold text-zinc-900 leading-none">{COMPANY_NAME}</span>
-          <span className="text-[10px] font-semibold bg-[#f3e8ff] text-[#6d28d9] px-2 py-[2px] rounded-md w-fit">
-            POS Probe
-          </span>
-        </div>
-      </div>
+      <BrandLockup forPrint />
       <div className="text-right">
         <p className="text-base font-bold text-foreground m-0 leading-tight">{title}</p>
         <p className="text-xs text-muted-foreground m-0 mt-0.5">{periodLabel}</p>
@@ -49,6 +34,9 @@ const printCss = (title: string, orientation: "portrait" | "landscape") => `
   @page {
     size: A4 ${orientation};
     margin: 12mm 12mm 14mm;
+    @top-left { content: ""; }
+    @top-center { content: ""; }
+    @top-right { content: ""; }
     @bottom-left {
       content: "${COMPANY_NAME} \\00B7 ${title} \\00B7 For internal use";
       font-family: Inter, system-ui, sans-serif;
@@ -63,9 +51,10 @@ const printCss = (title: string, orientation: "portrait" | "landscape") => `
     }
   }
   html, body { background: #fff !important; }
-  .report-print { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-print { color-scheme: light; --foreground: #18181b; --muted-foreground: #52525b; --border: #dedee4; --primary: #64269c; --muted: #f4f4f5; color: var(--foreground); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-print section.rounded-2xl { break-inside: auto; }
   .report-print tr { break-inside: avoid; }
-  .report-print table th { padding: 6px 8px !important; font-size: 7pt !important; }
+  .report-print table th { white-space: normal; padding: 6px 8px !important; font-size: 7pt !important; }
   .report-print table td { padding: 5px 8px !important; font-size: 8.5pt !important; }
 }
 `;

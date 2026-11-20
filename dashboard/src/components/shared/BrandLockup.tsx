@@ -3,24 +3,21 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /** Sidebar brand block, laid out exactly like the POS one, with this system's name in the badge. */
-export function BrandLockup({ className }: { className?: string }) {
+export function BrandLockup({ className, forPrint = false }: { className?: string; forPrint?: boolean }) {
   return (
-    <div className={cn("flex min-w-0 items-center gap-[11px] rounded-xl p-1", className)}>
-      {/* Decorative: the adjacent "Bren Raphael's" text names the brand. */}
-      <Image
-        alt=""
-        className="size-11 shrink-0 rounded-[10px]"
-        height={44}
-        src="/images/bren-raphaels-logo.svg"
-        unoptimized
-        width={44}
-      />
-      <div className="flex min-w-0 flex-col gap-1.5 pr-1">
-        <span className="truncate text-xl font-bold leading-none text-foreground">Bren Raphael&apos;s</span>
-        <span className="inline-block w-fit truncate rounded-md bg-brand-badge px-2 py-[3px] text-[11px] font-semibold text-brand-badge-foreground">
+    <span className={cn("flex min-w-0 items-center gap-3 text-left", className)}>
+      <span className="relative size-12 shrink-0 overflow-hidden rounded-[12px] border border-[#ece6f2] bg-white">
+        <Image alt="" src="/images/logo/chef-tile.png" fill sizes="48px" loading={forPrint ? "eager" : undefined} unoptimized={forPrint} className="object-contain p-[3px]" />
+      </span>
+      <span className="flex min-w-0 flex-col gap-[3px] font-semibold">
+        <span className="truncate font-[family-name:var(--font-fraunces)] text-xl leading-normal text-[#2a0f3f] dark:text-white print:text-[#2a0f3f]!"
+          style={{ fontVariationSettings: '"SOFT" 0, "WONK" 1' }}>
+          Bren Raphael&apos;s
+        </span>
+        <span className="text-[9px] uppercase leading-3 tracking-[1.1px] text-[#7a5899] dark:text-[#cdb8e6] print:text-[#7a5899]!">
           POS Probe
         </span>
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }

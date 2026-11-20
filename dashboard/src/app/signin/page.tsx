@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Radar } from "lucide-react";
-import { posUrl } from "@/lib/auth/token";
+import { posSalesUrl } from "@/lib/pos-url";
 
 /**
  * POS-PROBE has no sign-in form of its own: the owner and POS Managers open it with the
@@ -30,7 +30,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         </p>
         <a
           className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-          href={`${posUrl()}/sales-processing`}
+          href={posSalesUrl}
         >
           <Radar aria-hidden className="size-4" />
           Go to the POS

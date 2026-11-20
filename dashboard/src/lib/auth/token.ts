@@ -16,11 +16,6 @@ export type ProbeUser = {
 export const SESSION_COOKIE = "probe_session";
 export const SESSION_SECONDS = 8 * 60 * 60;
 
-/** Where people are sent to sign in: the POS, whose "Open Probe" button signs them in here. */
-export function posUrl(): string {
-  return (process.env.NEXT_PUBLIC_POS_URL ?? "https://localhost:3002").replace(/\/$/, "");
-}
-
 function secret(): string {
   const value = process.env.PROBE_HANDOFF_SECRET;
 
