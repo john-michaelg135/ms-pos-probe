@@ -103,6 +103,13 @@ _LOCATIONS_SQL = """
     ORDER BY "LocationName"
 """
 
+# Every branch with a stock record for a variation carries it, even while it is sold out.
+_STOCKED_SQL = """
+    SELECT l."LocationName", s."VariationId"
+    FROM "Stocks" s
+    JOIN "Locations" l ON l."LocationId" = s."LocationId"
+"""
+
 _WEIGHT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b", re.IGNORECASE)
 
 
@@ -271,7 +278,7 @@ def _coverage(bt: dict) -> float | None:
 
 # ── Training ──
 
-def load_daily(pg_conn, today: date) -> tuple[pd.DataFrame, list[dict]]:
+def load_daily(pg_conn, today: date) -> tuple[pd.DataFrame, list[dict], list[tuple[str, int]]]:
     cursor = pg_conn.cursor()
     try:
         since = datetime.combine(today - timedelta(days=HISTORY_DAYS), datetime.min.time(), tzinfo=MANILA)
@@ -280,12 +287,15 @@ def load_daily(pg_conn, today: date) -> tuple[pd.DataFrame, list[dict]]:
         daily = pd.DataFrame(cursor.fetchall(), columns=cols)
         cursor.execute(_LOCATIONS_SQL)
         locations = [{"location_id": r[0], "location_name": r[1]} for r in cursor.fetchall()]
+        cursor.execute(_STOCKED_SQL)
+        stocked = [(r[0], int(r[1])) for r in cursor.fetchall()]
     finally:
         cursor.close()
-    return daily, locations
+    return daily, locations, stocked
 
 
-def build_bundle(daily: pd.DataFrame, active_locations: list[dict], today: date) -> dict:
+def build_bundle(daily: pd.DataFrame, active_locations: list[dict], today: date,
+                 stocked: list[tuple[str, int]] | None = None) -> dict:
     """Train every variation and package what the API needs."""
     yesterday = today - timedelta(days=1)
     variations = {}
@@ -350,6 +360,13 @@ def build_bundle(daily: pd.DataFrame, active_locations: list[dict], today: date)
             if loc_name and totals.get(var_id, 0) > 0:
                 shares.setdefault(loc_name, {})[int(var_id)] = float(units / totals[var_id])
 
+    # What each branch carries: a stock record there, or sales there in the share window.
+    # A branch view lists only these, so another branch's products never appear at zero.
+    carried: dict[str, set[int]] = {name: set(by_var) for name, by_var in shares.items()}
+    for name, var_id in stocked or []:
+        if name and var_id in variations:
+            carried.setdefault(name, set()).add(var_id)
+
     names = sorted({loc["location_name"] for loc in active_locations} | set(shares))
     return {
         "version": 2,
@@ -357,6 +374,7 @@ def build_bundle(daily: pd.DataFrame, active_locations: list[dict], today: date)
         "train_end": yesterday,
         "variations": variations,
         "location_shares": shares,
+        "branch_variations": {name: sorted(ids) for name, ids in carried.items()},
         "locations": names,
         "active_branch_count": max(1, len(active_locations)),
         "service_level": SERVICE_LEVEL,
@@ -365,8 +383,8 @@ def build_bundle(daily: pd.DataFrame, active_locations: list[dict], today: date)
 
 def train_and_save(pg_conn) -> Path:
     today = datetime.now(MANILA).date()
-    daily, locations = load_daily(pg_conn, today)
-    bundle = build_bundle(daily, locations, today)
+    daily, locations, stocked = load_daily(pg_conn, today)
+    bundle = build_bundle(daily, locations, today, stocked)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     path = MODELS_DIR / f"forecast_bundle_{datetime.now(MANILA).strftime('%Y%m%d_%H%M')}.pkl"
     pending = path.with_suffix(".tmp")
@@ -396,6 +414,13 @@ def load_bundle() -> dict | None:
     return _cache["bundle"]
 
 
+def branch_variations(bundle: dict, location_name: str) -> set[int]:
+    """Variations a branch carries. Bundles trained before stock was recorded fall back to recent sales."""
+    if "branch_variations" in bundle:
+        return set(bundle["branch_variations"].get(location_name, ()))
+    return set(bundle["location_shares"].get(location_name, {}))
+
+
 def _location_ratio(bundle: dict, var_id: int, location_name: str) -> tuple[float, str]:
     shares = bundle["location_shares"]
     if location_name in shares:
@@ -410,8 +435,11 @@ def forecast(bundle: dict, days: int, variation_id: int | None = None, location_
     tomorrow = datetime.now(MANILA).date() + timedelta(days=1)
     dates = [tomorrow + timedelta(days=i) for i in range(days)]
     out = []
+    carried = branch_variations(bundle, location_name) if location_name else None
     for var_id, v in sorted(bundle["variations"].items()):
         if variation_id is not None and var_id != variation_id:
+            continue
+        if carried is not None and var_id not in carried:
             continue
         try:
             means = forecast_with(v["method"], v["series"], dates, v["fitted"])
