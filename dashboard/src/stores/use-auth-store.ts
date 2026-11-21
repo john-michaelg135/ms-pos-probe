@@ -39,8 +39,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       }
 
-      // Activates the api.ts request interceptor; the backend doesn't verify it yet.
-      localStorage.setItem("access_token", `probe.${u.username}.${u.role}`);
       set({
         user: {
           username: u.username,

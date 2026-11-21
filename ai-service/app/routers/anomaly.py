@@ -15,7 +15,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from app.services.auth import verify_token
+from app.services.auth import verify_gateway
 from app.services.database import get_duckdb
 from app.services.anomaly_engine import (
     SEGMENT_LABEL, add_model_columns, ensure_alert_columns, load_models, score_with_models, segment_of,
@@ -60,7 +60,7 @@ def load_iforest_model():
 async def detect_anomaly(
     payload: TransactionPayload,
     request: Request,
-    token: dict = Depends(verify_token),
+    _gateway: None = Depends(verify_gateway),
 ):
     models = load_models()
     request.app.state.iforest_artifacts = models

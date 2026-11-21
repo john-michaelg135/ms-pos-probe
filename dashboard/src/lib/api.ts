@@ -8,29 +8,12 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
 // ── Axios Instance ──
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5020",
+  baseURL: "/",
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
-
-// ── Request Interceptor: Inject JWT Bearer token ──
-api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    // In a real app, retrieve from cookie or auth state
-    // For now, the token will be passed from the auth context
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
 // ── Response Interceptor: Normalize errors ──
 api.interceptors.response.use(
@@ -102,7 +85,7 @@ export interface SyncForceResponse {
 // ── API Functions ──
 
 export async function fetchGatewayHealth(): Promise<HealthResponse> {
-  const { data } = await api.get<HealthResponse>("/health");
+  const { data } = await api.get<HealthResponse>("/health", { baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5020" });
   return data;
 }
 

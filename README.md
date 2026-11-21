@@ -557,3 +557,20 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 Academic project — Capstone Enhancement, Summer Semester 2026.
 
+
+## Deploying authenticated API calls
+
+Configure two independent random secrets of at least 32 characters per environment.
+Set `JWT_SECRET_KEY` on the dashboard server and AI service. Set `PROBE_GATEWAY_TOKEN`
+on the gateway and AI service. Keep the existing POS/dashboard `PROBE_HANDOFF_SECRET`
+and manager training key separate. The dashboard forwards signed requests to the
+gateway configured in `NEXT_PUBLIC_API_URL`. Use HTTPS for hosted service URLs.
+
+Roll out the dashboard and gateway callers in staging, then deploy the AI service
+with `AUTH_ENABLED=true`. Open Probe from POS and load revenue. Submit a gateway
+clone and verify scoring. Check that missing or expired credentials receive 401
+and that the gateway credential receives 401 on revenue and alert review updates.
+Repeat that deployment order in production after the staging checks pass.
+For local AI development only, explicitly set `PROBE_ENVIRONMENT=development`
+and `AUTH_ENABLED=false` to bypass verification. The dashboard still needs its
+server-side signing key for authenticated requests.

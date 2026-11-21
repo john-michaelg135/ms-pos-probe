@@ -1,14 +1,9 @@
-"""
-US-PROBE-003: JWT authentication service.
-Validates Bearer tokens signed by the legacy auth service using HMAC-SHA256.
+"""Credentials for dashboard requests and the gateway anomaly forwarder."""
 
-DEV MODE: When AUTH_ENABLED=false in .env, all endpoints are accessible
-without a token. Set AUTH_ENABLED=true for production/defense.
-"""
+from secrets import compare_digest
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Request
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
 from app.config.settings import Settings, get_settings
@@ -16,45 +11,36 @@ from app.config.settings import Settings, get_settings
 security = HTTPBearer(auto_error=False)
 
 
+def unauthorized():
+    return HTTPException(401, "Invalid or missing bearer credential", headers={"WWW-Authenticate": "Bearer"})
+
+
 def verify_token(
-    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    """
-    Extracts and validates the JWT Bearer token.
-    Returns the decoded payload if valid.
-
-    In dev mode (auth_enabled=false), returns a mock payload without requiring a token.
-    """
-    # Dev mode bypass
     if not settings.auth_enabled:
-        return {
-            "sub": "dev-user",
-            "email": "dev@pos-probe.local",
-            "role": "Admin",
-        }
-
-    # Production mode: require valid token
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = credentials.credentials
-
+        return {"sub": "dev-user", "role": "owner"}
+    if not credentials:
+        raise unauthorized()
     try:
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm],
+        claims = jwt.decode(
+            credentials.credentials, settings.jwt_secret_key, algorithms=["HS256"],
+            audience="probe-api", issuer="probe-dashboard",
+            options={"require_exp": True, "require_sub": True, "require_aud": True},
         )
-        return payload
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    except (JWTError, ValueError, TypeError):
+        raise unauthorized()
+    if claims.get("role") not in ("owner", "manager"):
+        raise unauthorized()
+    return claims
+
+
+def verify_gateway(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    if not settings.auth_enabled:
+        return
+    if not credentials or not compare_digest(credentials.credentials.encode(), settings.probe_gateway_token.encode()):
+        raise unauthorized()
