@@ -574,3 +574,19 @@ Repeat that deployment order in production after the staging checks pass.
 For local AI development only, explicitly set `PROBE_ENVIRONMENT=development`
 and `AUTH_ENABLED=false` to bypass verification. The dashboard still needs its
 server-side signing key for authenticated requests.
+
+## Branch access
+
+The AI service scopes every report, forecast, alert list, alert explanation and alert
+review by the role and branch in the dashboard-signed token. The dashboard takes them
+from the POS handoff, never from the browser. A manager only sees and changes their own
+branch (`location_id`), even without a location filter. A filter on another branch gets
+403, and another branch's alert answers 404 and keeps its status. The owner sees every
+branch. A manager token without a branch is refused.
+
+The live alerts socket (`/api/probe/alerts/ws`) needs a ticket. The page gets a 60-second
+ticket from `POST /api/auth/alerts-ticket` and sends `{"type": "auth", "token": "<ticket>"}`
+as its first message. The server answers `{"type": "ready"}` and then sends only the
+alerts for that subscriber's branches. A missing, invalid or late ticket (after 5 seconds)
+closes the socket with code 1008. Tickets have their own audience, so they don't work as
+API bearer tokens, and API tokens don't work as tickets.

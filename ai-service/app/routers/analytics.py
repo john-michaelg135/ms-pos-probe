@@ -6,7 +6,7 @@ Provides aggregated sales data from DuckDB for the dashboard charts.
 from fastapi import APIRouter, Depends, Query
 from datetime import date, timedelta
 
-from app.services.auth import verify_token
+from app.services.auth import BranchScope, branch_scope
 from app.services.database import get_duckdb
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
@@ -19,7 +19,7 @@ async def get_revenue(
     date_to: date = Query(default=None),
     location_id: int | None = Query(default=None),
     location_name: str | None = Query(default=None),
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
     """Revenue over time grouped by day, week, or month, optionally for one location."""
     conn = get_duckdb()
@@ -36,8 +36,9 @@ async def get_revenue(
         "month": "DATE_TRUNC('month', transaction_date)::DATE",
     }[group_by]
 
-    location_filter = ""
-    params = [str(date_from), str(date_to) + " 23:59:59"]
+    scope.check_filter(location_id, location_name)
+    location_filter, params = scope.sql()
+    params = [str(date_from), str(date_to) + " 23:59:59", *params]
     if location_id:
         location_filter += " AND location_id = ?"
         params.append(location_id)
@@ -70,9 +71,9 @@ async def get_revenue(
 async def get_sales_by_location(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
-    """Total revenue and quantity grouped by location."""
+    """Total revenue and quantity grouped by location (a manager gets only their branch)."""
     conn = get_duckdb()
 
     if not date_from:
@@ -80,7 +81,8 @@ async def get_sales_by_location(
     if not date_to:
         date_to = date.today()
 
-    query = """
+    location_filter, params = scope.sql()
+    query = f"""
         SELECT
             location_name,
             ROUND(SUM(total_amount), 2) AS total_revenue,
@@ -90,11 +92,12 @@ async def get_sales_by_location(
           AND transaction_date <= ?
           AND is_refund = FALSE
           AND location_name IS NOT NULL
+          {location_filter}
         GROUP BY location_name
         ORDER BY total_revenue DESC
     """
 
-    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59"]).fetchall()
+    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59", *params]).fetchall()
     columns = ["location_name", "total_revenue", "total_quantity"]
 
     return [dict(zip(columns, row)) for row in result]
@@ -105,7 +108,7 @@ async def get_sales_by_product(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
     location_name: str | None = Query(default=None),
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
     """Total revenue and quantity grouped by product and variation, optionally for one location."""
     conn = get_duckdb()
@@ -115,9 +118,11 @@ async def get_sales_by_product(
     if not date_to:
         date_to = date.today()
 
-    location_filter = "AND location_name = ?" if location_name else ""
-    params = [str(date_from), str(date_to) + " 23:59:59"]
+    scope.check_filter(location_name=location_name)
+    location_filter, params = scope.sql()
+    params = [str(date_from), str(date_to) + " 23:59:59", *params]
     if location_name:
+        location_filter += " AND location_name = ?"
         params.append(location_name)
 
     query = f"""
@@ -145,9 +150,9 @@ async def get_sales_by_product(
 async def get_sales_by_channel(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
-    """Revenue split between POS and Ecommerce channels."""
+    """Revenue split between POS and Ecommerce channels, within the caller's branches."""
     conn = get_duckdb()
 
     if not date_from:
@@ -155,7 +160,8 @@ async def get_sales_by_channel(
     if not date_to:
         date_to = date.today()
 
-    query = """
+    location_filter, params = scope.sql()
+    query = f"""
         SELECT
             order_source,
             ROUND(SUM(total_amount), 2) AS total_revenue,
@@ -164,11 +170,12 @@ async def get_sales_by_channel(
         WHERE transaction_date >= ?
           AND transaction_date <= ?
           AND is_refund = FALSE
+          {location_filter}
         GROUP BY order_source
         ORDER BY total_revenue DESC
     """
 
-    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59"]).fetchall()
+    result = conn.execute(query, [str(date_from), str(date_to) + " 23:59:59", *params]).fetchall()
     columns = ["order_source", "total_revenue", "total_quantity"]
 
     return [dict(zip(columns, row)) for row in result]
