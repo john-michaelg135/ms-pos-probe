@@ -93,7 +93,8 @@ def verify_training_key(x_training_key: str = Header(default="")):
 
 @router.get("/training", dependencies=[Depends(verify_training_key)])
 async def training_status():
-    return {"status": "running" if training.is_training() else training.training_status}
+    return {"status": "running" if training.is_training() else training.training_status,
+            "models": training.training_results}
 
 
 @router.post("/training", status_code=202, dependencies=[Depends(verify_training_key)])

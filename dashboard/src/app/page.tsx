@@ -339,15 +339,15 @@ function ModelTrainingCard() {
   const [error, setError] = useState("");
   const status = useQuery({
     queryKey: ["model-training"],
-    queryFn: async (): Promise<string> => {
+    queryFn: async (): Promise<{ status: string; models?: Record<string, string> }> => {
       const response = await fetch("/api/training", { cache: "no-store" });
       if (!response.ok) throw new Error("Training service unavailable");
-      return (await response.json()).status;
+      return response.json();
     },
-    refetchInterval: (query) => query.state.data === "running" ? 3000 : 60000,
+    refetchInterval: (query) => query.state.data?.status === "running" ? 3000 : 60000,
   });
 
-  const busy = submitting || status.data === "running";
+  const busy = submitting || status.data?.status === "running";
   const unavailable = busy || !status.data || status.isError;
 
   async function retrain() {
@@ -395,8 +395,20 @@ function ModelTrainingCard() {
           {error || (status.isError ? "Training service unavailable." : ({
             running: "Training is in progress.", completed: "Both models finished retraining.",
             failed: "Training failed. Check the AI service logs for details.",
-          } as Record<string, string>)[status.data ?? ""])}
+            partial: "Training finished.",
+          } as Record<string, string>)[status.data?.status ?? ""])}
         </p>
+        {!busy && status.data?.models && (
+          <ul className="text-sm text-muted-foreground">
+            {Object.entries(status.data.models).map(([model, result]) => (
+              <li key={model}>
+                {model === "forecast" ? "Demand forecast" : "Anomaly detection"}: {result === "insufficient_data"
+                  ? "Skipped. At least one sales channel needs 40 eligible orders in the last 180 days"
+                  : result}.
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

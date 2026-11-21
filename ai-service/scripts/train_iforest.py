@@ -74,7 +74,7 @@ def main():
 
     segments = {}
     all_true, all_pred = [], []
-    for seg in SEGMENTS:
+    for seg in SEGMENTS if not orders.empty else ():
         group = orders[orders["segment"] == seg].reset_index(drop=True)
         print(f"\n── {SEGMENT_LABEL[seg]} ({len(group):,} orders) ──")
         if len(group) < MIN_TRAINING_ORDERS:
@@ -102,7 +102,7 @@ def main():
 
     if not segments:
         print("\nNo channel had enough orders to train a model. Nothing saved.")
-        raise SystemExit(1)
+        raise SystemExit(3)  # Insufficient history for any channel.
 
     cm = confusion_matrix(all_true, all_pred, labels=[0, 1])
     report = classification_report(all_true, all_pred, labels=[0, 1], target_names=["Normal", "Anomaly"], output_dict=True, zero_division=0)

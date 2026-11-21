@@ -27,7 +27,7 @@ async def sync_job() -> None:
     await run_sync_pipeline()
 
 
-async def _run_script(name: str, timeout: int) -> bool:
+async def _run_script(name: str, timeout: int) -> str:
     """Run a training script in a worker thread so the API keeps answering while it trains."""
     import asyncio
     import subprocess
@@ -44,15 +44,19 @@ async def _run_script(name: str, timeout: int) -> bool:
         )
     except Exception as e:
         logger.error("auto_training_error", script=name, error=str(e))
-        return False
+        return "failed"
+    if name == "train_iforest.py" and result.returncode == 3:
+        logger.info("auto_training_skipped", script=name, reason="insufficient_data")
+        return "insufficient_data"
     if result.returncode != 0:
         logger.warning("auto_training_failed", script=name, detail=(result.stderr or result.stdout)[-1000:])
-        return False
+        return "failed"
     logger.info("auto_training_complete", script=name)
-    return True
+    return "completed"
 
 
 training_status = "idle"
+training_results: dict[str, str] = {}
 _training_task: asyncio.Task | None = None
 _training_lock = asyncio.Lock()
 
@@ -82,6 +86,7 @@ def start_model_training() -> bool:
     global _training_task, training_status
     if is_training():
         return False
+    training_results.clear()
     training_status = "running"
     _training_task = asyncio.create_task(_train_models())
     return True
@@ -91,9 +96,14 @@ async def _train_models() -> None:
     global training_status
     try:
         async with _training_lock:
-            forecast_ok = await _run_script("train_forecast.py", 600)
-            anomaly_ok = await _run_script("train_iforest.py", 300)
-        training_status = "completed" if forecast_ok and anomaly_ok else "failed"
+            training_results["forecast"] = await _run_script("train_forecast.py", 600)
+            training_results["anomaly"] = await _run_script("train_iforest.py", 300)
+        if "failed" in training_results.values():
+            training_status = "failed"
+        elif training_results["anomaly"] == "insufficient_data":
+            training_status = "partial"
+        else:
+            training_status = "completed"
     finally:
         if training_status == "running":
             training_status = "failed"
