@@ -68,24 +68,49 @@ export default function AlertsPage() {
     const wsUrl = (process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5020") + "/api/probe/alerts/ws";
     let reconnectTimeout: NodeJS.Timeout;
     let retryCount = 0;
+    let stopped = false;
 
-    function connect() {
+    function retry() {
+      setWsConnected(false);
+      if (stopped) return;
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+      retryCount++;
+      reconnectTimeout = setTimeout(connect, delay);
+    }
+
+    // The socket only delivers alerts after its first message carries a fresh ticket for this
+    // session; the server then sends just the alerts for this user's branches.
+    async function connect() {
+      let ticket: string;
+      try {
+        const response = await fetch("/api/auth/alerts-ticket", { method: "POST", cache: "no-store" });
+        if (!response.ok) throw new Error(String(response.status));
+        ticket = ((await response.json()) as { ticket: string }).ticket;
+      } catch {
+        retry();
+        return;
+      }
+      if (stopped) return;
+
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
-      ws.onopen = () => { setWsConnected(true); retryCount = 0; };
+      ws.onopen = () => ws.send(JSON.stringify({ type: "auth", token: ticket }));
       ws.onmessage = (event) => {
+        if (event.data === "pong") return;
         try {
-          const alert = JSON.parse(event.data) as AlertItem;
+          const message = JSON.parse(event.data);
+          if (message?.type === "ready") {
+            setWsConnected(true);
+            retryCount = 0;
+            return;
+          }
+          const alert = message as AlertItem;
+          if (!alert.alert_id) return;
           if (lockedLocationRef.current && alert.location_name !== lockedLocationRef.current) return;
           setLiveAlerts((prev) => [alert, ...prev].slice(0, 50));
         } catch {}
       };
-      ws.onclose = () => {
-        setWsConnected(false);
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-        retryCount++;
-        reconnectTimeout = setTimeout(connect, delay);
-      };
+      ws.onclose = retry;
       ws.onerror = () => ws.close();
     }
 
@@ -96,6 +121,7 @@ export default function AlertsPage() {
     }, 30000);
 
     return () => {
+      stopped = true;
       clearTimeout(reconnectTimeout);
       clearInterval(pingInterval);
       wsRef.current?.close();

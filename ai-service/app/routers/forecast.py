@@ -12,7 +12,7 @@ from datetime import datetime
 import numpy as np
 from fastapi import APIRouter, Depends, Query
 
-from app.services.auth import verify_token
+from app.services.auth import BranchScope, branch_scope
 from app.services.forecast_engine import (
     METHOD_LABEL, SERVICE_LEVEL, SHARE_DAYS, WEEKDAY_WEEKS, forecast, load_bundle,
 )
@@ -22,23 +22,29 @@ router = APIRouter(prefix="/forecast", tags=["Forecast"])
 WEEKDAYS = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"]
 
 
+def _branch(scope: BranchScope, location_name: str | None) -> str | None:
+    """The branch to forecast: always the manager's own; the owner's pick, or all branches."""
+    scope.check_filter(location_name=location_name)
+    return (location_name or None) if scope.is_owner else scope.location_name
+
+
 @router.get("")
 async def get_forecast(
     variation_id: int | None = Query(default=None),
     days: int = Query(default=7, ge=1, le=30),
     location_name: str | None = Query(default=None),
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
     """Daily forecast from tomorrow for every variation (or one), optionally for one branch."""
     bundle = load_bundle()
     if bundle is None:
         return []
-    return forecast(bundle, days, variation_id, location_name or None)
+    return forecast(bundle, days, variation_id, _branch(scope, location_name))
 
 
 @router.get("/locations")
-async def get_forecast_locations(token: dict = Depends(verify_token)):
-    """Active branches, plus any branch with sales in the last 90 days."""
+async def get_forecast_locations(scope: BranchScope = Depends(branch_scope)):
+    """Active branches, plus any branch with sales in the last 90 days; a manager gets only their own."""
     bundle = load_bundle()
     if bundle is None:
         return []
@@ -46,6 +52,7 @@ async def get_forecast_locations(token: dict = Depends(verify_token)):
     return [
         {"location_name": name, "has_recent_sales": name in shares}
         for name in bundle["locations"]
+        if scope.is_owner or name == scope.location_name
     ]
 
 
@@ -54,9 +61,10 @@ async def get_forecast_insights(
     variation_id: int | None = Query(default=None),
     days: int = Query(default=7, ge=1, le=30),
     location_name: str | None = Query(default=None),
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
     """Plain-language summary of the forecast for one variation or all of them, optionally for one branch."""
+    branch = _branch(scope, location_name)
     bundle = load_bundle()
     if bundle is None or not bundle["variations"]:
         return {
@@ -73,7 +81,6 @@ async def get_forecast_insights(
     scope_ids = [variation_id] if variation_id in variations else sorted(variations)
     single = len(scope_ids) == 1 and variation_id is not None
     scope = f"{variations[scope_ids[0]]['product_name']} {variations[scope_ids[0]]['variation_name']}" if single else "All variations"
-    branch = location_name or None
     if branch:
         scope = f"{scope} at {branch}"
 

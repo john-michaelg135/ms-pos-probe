@@ -3,18 +3,20 @@ US-PROBE-025/026: WebSocket alerts + Alert history endpoints.
 - WebSocket for real-time anomaly push notifications
 - GET /alerts for paginated alert history with filters
 - PUT /alerts/{alert_id}/status to update review status
+
+Every read, update and live event is limited to the caller's branch scope: a manager's own
+branch, or every branch for the owner. An alert outside the scope answers 404, as if absent.
 """
 
 import json
 import asyncio
 import structlog
-from datetime import datetime, timezone
-from typing import Set
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, HTTPException
 from pydantic import BaseModel
 
-from app.services.auth import verify_token
+from app.config.settings import Settings, get_settings
+from app.services.auth import ALERTS_WS_AUDIENCE, BranchScope, branch_scope, decode_dashboard_token, scope_from_claims
 from app.services.database import get_duckdb
 
 logger = structlog.get_logger()
@@ -22,40 +24,75 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
 # ── WebSocket connection manager ──
-_connected_clients: Set[WebSocket] = set()
+# Each authenticated subscriber, with the branches it may hear about.
+_connected_clients: dict[WebSocket, BranchScope] = {}
+
+WS_AUTH_TIMEOUT_SECONDS = 5
+WS_POLICY_VIOLATION = 1008
 
 
 async def broadcast_alert(alert_data: dict):
-    """Broadcast an anomaly alert to all connected WebSocket clients."""
+    """Send an anomaly alert to every subscriber whose scope covers the alert's branch."""
     if not _connected_clients:
         return
 
-    message = json.dumps(alert_data)
-    disconnected = set()
+    message = json.dumps(alert_data, default=str)
+    disconnected = []
 
-    for ws in _connected_clients:
+    # A snapshot: subscribers can join or leave while a send is awaited.
+    for ws, scope in list(_connected_clients.items()):
+        if not scope.allows(alert_data.get("location_id")):
+            continue
         try:
             await ws.send_text(message)
         except Exception:
-            disconnected.add(ws)
+            disconnected.append(ws)
 
-    # Clean up dead connections
-    _connected_clients.difference_update(disconnected)
+    for ws in disconnected:
+        _connected_clients.pop(ws, None)
+
+
+async def _authenticate_subscriber(websocket: WebSocket, settings: Settings) -> BranchScope | None:
+    """
+    The first message must be {"type": "auth", "token": <ticket>}, a dashboard-signed ticket for
+    the alerts socket. Browsers can't set headers on a WebSocket, and a ticket in the URL would
+    end up in proxy logs. None if the subscriber didn't authenticate in time.
+    """
+    if not settings.auth_enabled:
+        return BranchScope()
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), WS_AUTH_TIMEOUT_SECONDS)
+        message = json.loads(raw)
+        if not isinstance(message, dict) or message.get("type") != "auth" or not isinstance(message.get("token"), str):
+            return None
+        return scope_from_claims(decode_dashboard_token(message["token"], settings, ALERTS_WS_AUDIENCE))
+    except (asyncio.TimeoutError, ValueError, HTTPException, WebSocketDisconnect):
+        return None
 
 
 @router.websocket("/ws")
-async def websocket_alerts(websocket: WebSocket):
+async def websocket_alerts(websocket: WebSocket, settings: Settings = Depends(get_settings)):
     """
     US-PROBE-025: WebSocket endpoint for real-time anomaly alerts.
     Clients connect to ws://localhost:5020/api/probe/alerts/ws
-    (proxied through YARP gateway).
+    (proxied through YARP gateway), then authenticate with their first message.
     Implements ping/pong keep-alive.
     """
     await websocket.accept()
-    _connected_clients.add(websocket)
-    logger.info("ws_client_connected", total_clients=len(_connected_clients))
+    scope = await _authenticate_subscriber(websocket, settings)
+    if scope is None:
+        logger.info("ws_client_rejected")
+        try:
+            await websocket.close(code=WS_POLICY_VIOLATION, reason="Authentication required")
+        except Exception:
+            pass
+        return
+
+    _connected_clients[websocket] = scope
+    logger.info("ws_client_connected", total_clients=len(_connected_clients), location_id=scope.location_id)
 
     try:
+        await websocket.send_text(json.dumps({"type": "ready"}))
         while True:
             # Keep-alive: wait for client pings or messages
             data = await websocket.receive_text()
@@ -67,7 +104,7 @@ async def websocket_alerts(websocket: WebSocket):
     except Exception as e:
         logger.debug("ws_client_error", error=str(e))
     finally:
-        _connected_clients.discard(websocket)
+        _connected_clients.pop(websocket, None)
         logger.info("ws_client_disconnected", total_clients=len(_connected_clients))
 
 
@@ -83,17 +120,21 @@ async def get_alerts(
     cashier_id: str | None = Query(default=None),
     status: str | None = Query(default=None),
     location_name: str | None = Query(default=None),
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
     """
-    US-PROBE-026: Paginated list of all anomaly alerts with optional filters.
+    US-PROBE-026: Paginated list of anomaly alerts in the caller's branches, with optional filters.
     Sorted by detected_at descending (newest first).
     """
+    scope.check_filter(location_name=location_name)
     conn = get_duckdb()
 
     # Build WHERE clauses
     conditions = []
     params = []
+    if not scope.is_owner:
+        conditions.append("location_id = ?")
+        params.append(scope.location_id)
 
     if date_from:
         conditions.append("detected_at >= ?")
@@ -166,7 +207,7 @@ class StatusUpdate(BaseModel):
 async def update_alert_status(
     alert_id: str,
     body: StatusUpdate,
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
     """
     US-PROBE-026: Update the review status of an anomaly alert.
@@ -177,15 +218,14 @@ async def update_alert_status(
 
     conn = get_duckdb()
 
-    # Check if alert exists
-    existing = conn.execute("SELECT alert_id FROM anomaly_alerts WHERE alert_id = ?", [alert_id]).fetchone()
-    if not existing:
+    # The scope is part of the UPDATE itself, so another branch's alert is never touched.
+    scope_filter, scope_params = scope.sql()
+    updated = conn.execute(
+        f"UPDATE anomaly_alerts SET status = ? WHERE alert_id = ?{scope_filter} RETURNING alert_id",
+        [body.status, alert_id, *scope_params],
+    ).fetchone()
+    if not updated:
         raise HTTPException(status_code=404, detail="Alert not found.")
-
-    conn.execute(
-        "UPDATE anomaly_alerts SET status = ? WHERE alert_id = ?",
-        [body.status, alert_id]
-    )
 
     return {"alert_id": alert_id, "status": body.status, "updated": True}
 
@@ -193,7 +233,7 @@ async def update_alert_status(
 @router.get("/{alert_id}/explain")
 async def explain_alert(
     alert_id: str,
-    token: dict = Depends(verify_token),
+    scope: BranchScope = Depends(branch_scope),
 ):
     """
     AI-generated explanation of why a transaction was flagged as anomalous.
@@ -201,13 +241,14 @@ async def explain_alert(
     """
     conn = get_duckdb()
 
-    # Fetch the alert
-    alert_row = conn.execute("""
+    # Fetch the alert, only if it is in the caller's branches
+    scope_filter, scope_params = scope.sql()
+    alert_row = conn.execute(f"""
         SELECT alert_id, order_id, transaction_amount, anomaly_score,
                risk_level, reason, cashier_id, cashier_name,
                location_id, location_name, detected_at, details
-        FROM anomaly_alerts WHERE alert_id = ?
-    """, [alert_id]).fetchone()
+        FROM anomaly_alerts WHERE alert_id = ?{scope_filter}
+    """, [alert_id, *scope_params]).fetchone()
 
     if not alert_row:
         raise HTTPException(status_code=404, detail="Alert not found.")
@@ -241,9 +282,9 @@ async def explain_alert(
                 "cashier_context": None,
             }
 
-    # Gather historical statistics for context
+    # Gather historical statistics for context, from the caller's branches only
     try:
-        stats = conn.execute("""
+        stats = conn.execute(f"""
             SELECT
                 ROUND(AVG(total_amount), 2) AS avg_amount,
                 ROUND(STDDEV(total_amount), 2) AS std_amount,
@@ -253,23 +294,23 @@ async def explain_alert(
                 COUNT(*) AS total_transactions,
                 ROUND(AVG(discount_amount), 2) AS avg_discount
             FROM sales_transactions
-            WHERE is_refund = FALSE
-        """).fetchone()
+            WHERE is_refund = FALSE{scope_filter}
+        """, scope_params).fetchone()
     except Exception:
         stats = None
 
     # Gather hourly distribution
     try:
-        hour_stats = conn.execute("""
+        hour_stats = conn.execute(f"""
             SELECT
                 EXTRACT(HOUR FROM transaction_date) AS hour,
                 COUNT(*) AS count
             FROM sales_transactions
-            WHERE is_refund = FALSE
+            WHERE is_refund = FALSE{scope_filter}
             GROUP BY hour
             ORDER BY count DESC
             LIMIT 3
-        """).fetchall()
+        """, scope_params).fetchall()
     except Exception:
         hour_stats = []
 
@@ -277,10 +318,10 @@ async def explain_alert(
     cashier_context = ""
     if alert["cashier_id"]:
         try:
-            cashier_stats = conn.execute("""
+            cashier_stats = conn.execute(f"""
                 SELECT COUNT(*) as total_alerts, AVG(transaction_amount) as avg_amount
-                FROM anomaly_alerts WHERE cashier_id = ?
-            """, [alert["cashier_id"]]).fetchone()
+                FROM anomaly_alerts WHERE cashier_id = ?{scope_filter}
+            """, [alert["cashier_id"], *scope_params]).fetchone()
             if cashier_stats and cashier_stats[0] and cashier_stats[0] > 1:
                 cashier_context = (
                     f"This cashier ({alert['cashier_name'] or alert['cashier_id']}) has "

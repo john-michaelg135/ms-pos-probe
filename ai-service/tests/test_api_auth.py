@@ -26,13 +26,14 @@ class ApiAuthTests(unittest.TestCase):
 
     def dashboard_token(self, **overrides):
         claims = {"iss": "probe-dashboard", "aud": "probe-api", "sub": "manager",
-                  "role": "manager", "exp": int(time.time()) + 60, **overrides}
+                  "role": "manager", "location": {"id": 1, "name": "Main"},
+                  "exp": int(time.time()) + 60, **overrides}
         return jwt.encode(claims, self.settings.jwt_secret_key, algorithm="HS256")
 
     def test_dashboard_revenue(self):
         with duckdb.connect() as conn, patch.object(analytics, "get_duckdb", return_value=conn):
             conn.execute("""CREATE TABLE sales_transactions AS SELECT current_timestamp AS transaction_date,
-                         123 AS total_amount, 1 AS order_id, 1 AS quantity, false AS is_refund""")
+                         123 AS total_amount, 1 AS order_id, 1 AS quantity, false AS is_refund, 1 AS location_id""")
             response = self.revenue(self.dashboard_token())
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()[0]["total_revenue"], 123)
