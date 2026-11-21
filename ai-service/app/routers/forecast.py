@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.services.auth import BranchScope, branch_scope
 from app.services.forecast_engine import (
-    METHOD_LABEL, SERVICE_LEVEL, SHARE_DAYS, WEEKDAY_WEEKS, forecast, load_bundle,
+    METHOD_LABEL, SERVICE_LEVEL, SHARE_DAYS, WEEKDAY_WEEKS, branch_variations, forecast, load_bundle,
 )
 
 router = APIRouter(prefix="/forecast", tags=["Forecast"])
@@ -61,10 +61,10 @@ async def get_forecast_insights(
     variation_id: int | None = Query(default=None),
     days: int = Query(default=7, ge=1, le=30),
     location_name: str | None = Query(default=None),
-    scope: BranchScope = Depends(branch_scope),
+    access: BranchScope = Depends(branch_scope),
 ):
     """Plain-language summary of the forecast for one variation or all of them, optionally for one branch."""
-    branch = _branch(scope, location_name)
+    branch = _branch(access, location_name)
     bundle = load_bundle()
     if bundle is None or not bundle["variations"]:
         return {
@@ -78,6 +78,22 @@ async def get_forecast_insights(
         }
 
     variations = bundle["variations"]
+    if branch:
+        # Only what this branch carries; another branch's products aren't part of its picture.
+        carried = branch_variations(bundle, branch)
+        variations = {k: v for k, v in variations.items() if k in carried}
+        if not variations:
+            none_yet = f"{branch} has no stocked products and no walk-in, bazaar or online sales in the last {SHARE_DAYS} days."
+            return {
+                "engine": "No data",
+                "variation_name": f"All variations at {branch}",
+                "model_baseline": none_yet,
+                "demand_drivers": none_yet,
+                "stockout_risk": none_yet,
+                "safety_stock": "Nothing is forecast for this branch yet.",
+                "velocity_class": "Insufficient Data",
+                "trained_at": bundle["trained_at"],
+            }
     scope_ids = [variation_id] if variation_id in variations else sorted(variations)
     single = len(scope_ids) == 1 and variation_id is not None
     scope = f"{variations[scope_ids[0]]['product_name']} {variations[scope_ids[0]]['variation_name']}" if single else "All variations"
