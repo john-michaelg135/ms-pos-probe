@@ -369,8 +369,10 @@ def train_and_save(pg_conn) -> Path:
     bundle = build_bundle(daily, locations, today)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     path = MODELS_DIR / f"forecast_bundle_{datetime.now(MANILA).strftime('%Y%m%d_%H%M')}.pkl"
-    with open(path, "wb") as f:
+    pending = path.with_suffix(".tmp")
+    with open(pending, "wb") as f:
         pickle.dump(bundle, f)
+    pending.replace(path)
     # Keep the three newest bundles.
     for old in sorted(MODELS_DIR.glob(BUNDLE_GLOB), reverse=True)[3:]:
         old.unlink(missing_ok=True)

@@ -5,6 +5,7 @@ Re-trains the demand forecast daily (2am) and the anomaly models weekly (Sunday 
 Does not block the FastAPI async event loop.
 """
 
+import asyncio
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -38,26 +39,64 @@ async def _run_script(name: str, timeout: int) -> bool:
         result = await asyncio.to_thread(
             subprocess.run,
             [sys.executable, str(scripts_dir / name)],
-            capture_output=True, text=True, timeout=timeout, cwd=str(scripts_dir.parent),
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=timeout, cwd=str(scripts_dir.parent),
         )
     except Exception as e:
         logger.error("auto_training_error", script=name, error=str(e))
         return False
     if result.returncode != 0:
-        logger.warning("auto_training_failed", script=name, stderr=result.stderr[-300:] if result.stderr else "")
+        logger.warning("auto_training_failed", script=name, detail=(result.stderr or result.stdout)[-1000:])
         return False
     logger.info("auto_training_complete", script=name)
     return True
 
 
+training_status = "idle"
+_training_task: asyncio.Task | None = None
+_training_lock = asyncio.Lock()
+
+
+async def _scheduled_training(script: str, timeout: int) -> None:
+    # An active manual run already covers both scheduled models.
+    if _training_task and not _training_task.done():
+        await asyncio.shield(_training_task)
+        return
+    async with _training_lock:
+        await _run_script(script, timeout)
+
+
 async def train_forecast_job() -> None:
-    """Re-train the demand forecast from the POS database (daily)."""
-    await _run_script("train_forecast.py", timeout=600)
+    await _scheduled_training("train_forecast.py", 600)
 
 
 async def train_anomaly_model_job() -> None:
-    """Re-train the per-channel Isolation Forest models (weekly)."""
-    await _run_script("train_iforest.py", timeout=300)
+    await _scheduled_training("train_iforest.py", 300)
+
+
+def is_training() -> bool:
+    return _training_lock.locked() or (_training_task is not None and not _training_task.done())
+
+
+def start_model_training() -> bool:
+    global _training_task, training_status
+    if is_training():
+        return False
+    training_status = "running"
+    _training_task = asyncio.create_task(_train_models())
+    return True
+
+
+async def _train_models() -> None:
+    global training_status
+    try:
+        async with _training_lock:
+            forecast_ok = await _run_script("train_forecast.py", 600)
+            anomaly_ok = await _run_script("train_iforest.py", 300)
+        training_status = "completed" if forecast_ok and anomaly_ok else "failed"
+    finally:
+        if training_status == "running":
+            training_status = "failed"
 
 
 def start_scheduler() -> None:

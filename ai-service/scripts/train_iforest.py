@@ -54,6 +54,7 @@ def proxy_labels(group: pd.DataFrame) -> np.ndarray:
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")
     contamination = float(sys.argv[1]) if len(sys.argv) > 1 else 0.01
     print("=" * 60)
     print("US-PROBE-016: Isolation Forest training (per channel)")
@@ -101,7 +102,7 @@ def main():
 
     if not segments:
         print("\nNo channel had enough orders to train a model. Nothing saved.")
-        return
+        raise SystemExit(1)
 
     cm = confusion_matrix(all_true, all_pred, labels=[0, 1])
     report = classification_report(all_true, all_pred, labels=[0, 1], target_names=["Normal", "Anomaly"], output_dict=True, zero_division=0)
@@ -128,8 +129,10 @@ def main():
         "trained_at": datetime.now().isoformat(),
     }
     model_path = MODELS_DIR / f"iforest_{datetime.now().strftime('%Y%m%d')}.pkl"
-    with open(model_path, "wb") as f:
+    pending = model_path.with_suffix(".tmp")
+    with open(pending, "wb") as f:
         pickle.dump(artifacts, f)
+    pending.replace(model_path)
     print(f"\nModel saved to: {model_path}")
 
 

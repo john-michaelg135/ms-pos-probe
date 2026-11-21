@@ -17,6 +17,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   CHART_COLORS, AXIS_TICK, GRID_STROKE, tooltipContentStyle, tooltipLabelStyle, formatAvgUnits, AVG_UNITS_AXIS_LABEL,
 } from "@/lib/chart-theme";
 import { formatDate, formatDateShort } from "@/lib/format-date";
@@ -330,6 +334,74 @@ function MetricCard({ icon, label, value, sublabel, iconColor, action }: { icon:
 }
 
 // ── Manager Dashboard ──
+function ModelTrainingCard() {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const status = useQuery({
+    queryKey: ["model-training"],
+    queryFn: async (): Promise<string> => {
+      const response = await fetch("/api/training", { cache: "no-store" });
+      if (!response.ok) throw new Error("Training service unavailable");
+      return (await response.json()).status;
+    },
+    refetchInterval: (query) => query.state.data === "running" ? 3000 : 60000,
+  });
+
+  const busy = submitting || status.data === "running";
+  const unavailable = busy || !status.data || status.isError;
+
+  async function retrain() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/training", { method: "POST" });
+      if (!response.ok && response.status !== 409) throw new Error();
+      await status.refetch();
+    } catch {
+      setError("Could not confirm the training request. Check the service status before retrying.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Model training</CardTitle>
+        <CardDescription>Retrain demand forecasting and anomaly detection using current POS data across branches.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button disabled={unavailable}>{busy ? "Retraining…" : "Retrain models"}</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Retrain both models?</DialogTitle>
+              <DialogDescription>
+                Manual retraining is a development-phase feature. We recommend running it
+                Friday through Sunday. The demand forecast trains automatically every day. Anomaly detection trains on Sundays.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+              <DialogClose asChild>
+                <Button disabled={unavailable} onClick={retrain}>Start retraining</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <p role="status" className="text-sm text-muted-foreground">
+          {error || (status.isError ? "Training service unavailable." : ({
+            running: "Training is in progress.", completed: "Both models finished retraining.",
+            failed: "Training failed. Check the AI service logs for details.",
+          } as Record<string, string>)[status.data ?? ""])}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ManagerDashboard() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
@@ -412,6 +484,8 @@ function ManagerDashboard() {
           )}
         </CardContent>
       </Card>
+
+      <ModelTrainingCard />
 
       <Card>
         <CardHeader>

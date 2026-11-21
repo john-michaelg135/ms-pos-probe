@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     contamination_rate: float = 0.05
     forecast_cache_ttl: int = 21600  # 6 hours in seconds
 
+    probe_training_key: str = ""
+
     # JWT
     jwt_secret_key: str = "your_jwt_secret_here"
     jwt_algorithm: str = "HS256"

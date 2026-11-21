@@ -3,7 +3,10 @@ US-PROBE-007/028: Sync pipeline endpoints.
 Provides manual sync trigger and last sync status.
 """
 
+import secrets
 import structlog
+from fastapi import Header
+from app.jobs import scheduler as training
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -80,3 +83,21 @@ async def force_sync(token: dict = Depends(verify_token)):
         return result
     finally:
         _sync_in_progress = False
+
+
+def verify_training_key(x_training_key: str = Header(default="")):
+    key = get_settings().probe_training_key
+    if not key or not secrets.compare_digest(key.encode(), x_training_key.encode()):
+        raise HTTPException(status_code=403, detail="Training access denied")
+
+
+@router.get("/training", dependencies=[Depends(verify_training_key)])
+async def training_status():
+    return {"status": "running" if training.is_training() else training.training_status}
+
+
+@router.post("/training", status_code=202, dependencies=[Depends(verify_training_key)])
+async def trigger_training():
+    if not training.start_model_training():
+        raise HTTPException(status_code=409, detail="Training is already running")
+    return {"status": "running"}

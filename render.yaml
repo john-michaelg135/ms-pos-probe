@@ -66,6 +66,8 @@ services:
         value: ./data/analytics.duckdb
 
       # ── Sync + ML ──
+      - key: PROBE_TRAINING_KEY
+        sync: false
       - key: SYNC_INTERVAL_MINUTES
         value: "10"
       - key: CONTAMINATION_RATE
