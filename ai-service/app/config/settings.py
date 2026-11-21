@@ -45,12 +45,21 @@ class Settings(BaseSettings):
 
     probe_training_key: str = ""
 
-    # JWT
-    jwt_secret_key: str = "your_jwt_secret_here"
+    jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
+    probe_gateway_token: str = ""
+    probe_environment: str = "production"
+    auth_enabled: bool = True
 
-    # Auth toggle (false = bypass JWT for dev)
-    auth_enabled: bool = False
+    def validate_auth(self) -> None:
+        if not self.auth_enabled:
+            if self.probe_environment != "development":
+                raise ValueError("Authentication bypass requires PROBE_ENVIRONMENT=development")
+            return
+        if self.jwt_algorithm != "HS256" or len(self.jwt_secret_key.strip()) < 32:
+            raise ValueError("Configure HS256 and a random JWT_SECRET_KEY of at least 32 characters")
+        if len(self.probe_gateway_token.strip()) < 32 or self.probe_gateway_token == self.jwt_secret_key:
+            raise ValueError("Configure a separate random PROBE_GATEWAY_TOKEN of at least 32 characters")
 
     # Sync rate limit in seconds (0 = disabled)
     sync_rate_limit_seconds: int = 300

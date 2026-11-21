@@ -56,9 +56,15 @@ builder.Services.AddHostedService<AnomalyForwarderService>();
 
 // HTTP client for AI service with Polly retry policy
 var aiServiceUrl = Environment.GetEnvironmentVariable("AI_SERVICE_URL") ?? "http://localhost:8000";
+var gatewayToken = builder.Configuration["PROBE_GATEWAY_TOKEN"];
+if (!builder.Environment.IsDevelopment() && (gatewayToken?.Trim().Length ?? 0) < 32)
+    throw new InvalidOperationException("Set PROBE_GATEWAY_TOKEN to the AI service gateway credential.");
+
 builder.Services.AddHttpClient("AiService", client =>
 {
     client.BaseAddress = new Uri(aiServiceUrl);
+    if (!string.IsNullOrWhiteSpace(gatewayToken))
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", gatewayToken);
     client.Timeout = TimeSpan.FromSeconds(5);
 })
 .AddPolicyHandler(HttpPolicyExtensions

@@ -12,6 +12,8 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: PROBE_GATEWAY_TOKEN
+        sync: false
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       # Legacy gateway owned by another team. Set when known; catch-all proxies here.
@@ -77,10 +79,13 @@ services:
       - key: SYNC_RATE_LIMIT_SECONDS
         value: "0"
 
-      # ── Auth (shared-secret HMAC; owned by another team) ──
-      # Keep false for demo. Set true + matching JWT_SECRET_KEY when integrating.
+      # Server-only credentials shared with their respective callers.
+      - key: PROBE_ENVIRONMENT
+        value: production
       - key: AUTH_ENABLED
-        value: "false"
+        value: "true"
+      - key: PROBE_GATEWAY_TOKEN
+        sync: false
       - key: JWT_SECRET_KEY
         sync: false
       - key: JWT_ALGORITHM

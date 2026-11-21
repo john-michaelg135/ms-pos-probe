@@ -43,6 +43,7 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     """Application lifecycle: startup and shutdown events."""
     settings = get_settings()
+    settings.validate_auth()
     logger.info(
         "pos_probe_ai_starting",
         host=settings.fastapi_host,
